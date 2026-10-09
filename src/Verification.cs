@@ -35,6 +35,7 @@ namespace StickMayhem {
             Check(Rules.Weapons[0].Reload == 3 && Rules.Weapons[1].Magazine == 12 && Rules.Weapons[1].Reload == 2 &&
                 Rules.Weapons[2].Magazine == 20 && Rules.Weapons[2].Automatic && Rules.Weapons[2].Push < Rules.Weapons[1].Push && Rules.Weapons[1].Push < Rules.Weapons[0].Push,
                 "requested pistol magazines reloads damage and automatic fire");
+            Check(Rules.Weapons[0].Push == 420, "revolver knockback damage increased");
             Check(Rules.Weapons[6].Magazine == 60 && Rules.Weapons[6].Ammo == 60 && Rules.Weapons[7].Explosive && Rules.Weapons[8].Melee, "Gatling 60 rounds, grenade launcher and melee sword configured");
             Check(Rules.Weapons[7].Magazine == 12 && Rules.Weapons[7].Ammo == 12, "grenade launcher has one finite twelve-round magazine");
             Check(Rules.Weapons[3].Push > 100 && Rules.Weapons[3].Pellets > 5, "shotgun impact and pellet count increased");
@@ -69,9 +70,13 @@ namespace StickMayhem {
             m.Submit(0, Frame(m, 0, 1, 0, false, p.X + 100, p.Y - 200)); m.Step();
             Check(p.Bombs == 2 && m.State.Grenades.Count == 1, "mouse aimed grenade");
             for (int i = 0; i < 90; i++) m.Step(); Check(m.State.Grenades.Count == 0, "grenade fuse expires");
-            m = New(0, 0); p = m.State.Players[0];
+            m = New(0, 0); p = m.State.Players[0]; p.Invulnerable = 0;
             m.State.Grenades.Add(new Grenade { Owner = 0, X = p.X, Y = p.Y - 25, Fuse = .01 }); m.Step();
-            Check(p.Impact > 0 && p.Vy < 0, "grenade can hit own player");
+            Check(p.Impact > 15 && p.Vy < -70, "buffed thrown explosive hits hard, including its owner");
+            m = New(0, 0); var specialHolder = m.State.Players[1]; specialHolder.Weapon = 6; specialHolder.Magazine = 60; specialHolder.WeaponTime = 12;
+            m.State.Crates.Add(new Crate { Id = 90, Weapon = 3, X = specialHolder.X, Y = specialHolder.Y - 20, Landed = true });
+            m.State.Crates.Add(new Crate { Id = 91, Weapon = 8, X = specialHolder.X, Y = specialHolder.Y - 20, Landed = true, Large = true }); m.Step();
+            Check(specialHolder.Weapon == 6 && specialHolder.WeaponTime > 11.9 && m.State.Crates.Count == 2, "holding a large-drop weapon blocks replacement by either crate type");
             m = New(0, 0); p = m.State.Players[0];
             m.State.Grenades.Add(new Grenade { Owner = 0, X = 500, Y = 490, Vy = 150, Fuse = 1 });
             m.Step(); m.Step(); Check(m.State.Grenades[0].Vy < 0, "grenade platform bounce");
@@ -81,7 +86,9 @@ namespace StickMayhem {
                 int expectedReserve = weapon < Rules.StarterCount ? -1 : Math.Max(0, Rules.Weapons[weapon].Ammo - Rules.Weapons[weapon].Magazine);
                 Check(p.Weapon == weapon && p.Magazine == Rules.Weapons[weapon].Magazine && p.Reserve == expectedReserve && m.State.Crates.Count == 0, "crate grants each weapon and ammo");
                 string pickup = String.IsNullOrEmpty(Rules.Weapons[weapon].Pickup) ? Rules.Weapons[weapon].Name : Rules.Weapons[weapon].Pickup;
+                if (weapon == 8) pickup += " · 隐身5秒";
                 Check(p.Popup == pickup && p.PopupTime == 1.65, "Chinese pickup label");
+                Check(weapon == 8 ? p.InvisibleTime > 4.9 : p.InvisibleTime == 0, "sword pickup grants five-second invisibility");
                 double rise = Match.PopupRise(p);
                 for (int i = 0; i < 75; i++) m.Step();
                 Check(p.PopupTime > 0 && Match.PopupOpacity(p) < 1 && Match.PopupRise(p) > rise, "label rises and fades");
@@ -231,9 +238,10 @@ namespace StickMayhem {
                 Pump(() => host.Current.Players[1].InvisibleTime > 4.9 && guest.Current.Players[1].InvisibleTime > 4.9, 3000, "invisibility pickup and timer synchronized over LAN");
                 var target = host.Current.Players[0]; target.Invulnerable = 0; target.X = player.X + 45; target.Y = player.Y; int targetLives = target.Lives;
                 player.Weapon = 8; player.WeaponTime = 15; player.Cooldown = 0;
-                Check(host.Engine.Submit(1, new InputFrame { Session = host.Current.Session, Seq = 10000, Jump = 2, Bomb = 1, AimX = player.X + 90, AimY = player.Y - 25, Fire = true }), "sword attack input accepted by host simulation");
-                try { Pump(() => host.Current.Players[0].Lives == targetLives - 1 && guest.Current.Players[0].Lives == host.Current.Players[0].Lives && guest.Current.Shatters.Any(s => s.Owner == 0), 3000, "sword instant kill and shatter synchronize over LAN"); }
-                catch (Exception ex) { var f = host.Current.Players[0]; throw new InvalidOperationException(ex.Message + " [sword=" + player.Weapon + "/" + player.WeaponTime + ", cooldown=" + player.Cooldown + ", targetLives=" + f.Lives + "/" + targetLives + ", targetRespawn=" + f.Respawn + ", targetInv=" + f.Invulnerable + ", delta=" + (f.X - player.X) + "/" + (f.Y - player.Y) + ", shards=" + host.Current.Shatters.Count + ", last=" + host.Current.Log.Last() + "]", ex); }
+                Check(host.Engine.Submit(1, new InputFrame { Session = host.Current.Session, Seq = 10000, Jump = 2, Bomb = 1, AimX = player.X + 90, AimY = player.Y - 25, Fire = false }), "sword test releases previous firing input");
+                host.Engine.Step();
+                Check(host.Engine.Submit(1, new InputFrame { Session = host.Current.Session, Seq = 10001, Jump = 2, Bomb = 1, AimX = player.X + 90, AimY = player.Y - 25, Fire = true }), "sword attack input accepted by host simulation");
+                Pump(() => host.Current.Players[0].Lives == targetLives - 1 && guest.Current.Players[0].Lives == host.Current.Players[0].Lives && guest.Current.Shatters.Any(s => s.Owner == 0), 3000, "sword instant kill and shatter synchronize over LAN");
                 guest.Leave(); Pump(() => !host.IsPlaying, 3000, "disconnect halts host"); int halted = host.Current.Tick;
                 Pump(() => true, 100, "dispatcher settles"); Check(host.Current.Tick == halted, "host does not keep simulating after disconnect");
             } finally { host.Close(); guest.Close(); }
@@ -304,13 +312,13 @@ namespace StickMayhem {
             var offscreen = Fixture(); offscreen.Players[0].X = 1080; offscreen.Players[0].Y = 700; offscreen.Players[1].X = -70; offscreen.Players[1].Y = 250;
             w.SetPreview(offscreen); w.Field.State = offscreen; w.Field.Seat = 0; Render(w, Path.Combine(folder, "offscreen-arrows.png"));
             File.WriteAllText(Path.Combine(folder, "verification.json"), Rules.Serializer().Serialize(new {
-                Passed = true, Assertions = checks, Weapons = 9, PistolStarters = 3, NormalDropsExcludeStarterAndSpecialWeapons = true, LargeDropsContainGatlingAndSword = true, Maps = 3, MouseAiming = true, DoubleJump = true, ParachuteCrates = true,
+                Passed = true, Assertions = checks, Weapons = 9, PistolStarters = 3, NormalDropsExcludeStarterAndSpecialWeapons = true, LargeDropsContainGatlingAndSword = true, LargeDropWeaponsCannotBeReplaced = true, SwordPickupGrantsFiveSecondInvisibility = true, RevolverAndThrownBombBoosted = true, Maps = 3, MouseAiming = true, DoubleJump = true, ParachuteCrates = true,
                 MagazineReloads = true, ReloadProgressArc = true, BotPistolReloads = true, GrenadeLauncherFallback = true, ShotgunBoostedImpact = true, ShieldAndRocketFlight = true, JetFuel = true, InvisibilityBothViews = true, Invisibility = true, GrenadeLauncher = true, Gatling60And15SecondFatal = true, PrisonSwordInstantKill = true, ShatterAnimation = true, FinalStandPopup = true,
                 ChineseFloatingFadingPickup = true, CustomStarter = true, TcpTwoWpfPeers = true, AuthoritativePhysics = true,
                 HeadImpactPercent = true, OffscreenArrows = true, DisconnectStops = true, ActualWpfRenders = true, PhysicalTwoComputerTest = false, PhysicalMouseTest = false
             }));
             File.WriteAllText(Path.Combine(folder, "verification.txt"), "PASS: " + checks + " assertions.\r\n" +
-                "Six full AI battles across all maps and pistol starters; movement, double-jump, drop-through, mouse-direction shots, swept collisions, knockback, thrown and launched grenades, grenade-launcher fallback, player and bot reloads, 60-round/15-second Gatling, timed prison sword instant kill, shatter animation, normal and large airdrop pools, shotgun boost, final-stand popup, shield, unlimited-duration rocket flight with finite fuel, invisibility pickup and perspective rendering, Chinese floating fade, respawn and victory.\r\n" +
+                "Six full AI battles across all maps and pistol starters; movement, double-jump, drop-through, mouse-direction shots, swept collisions, boosted revolver knockback and thrown-bomb blast, large-drop weapon replacement lock, sword pickup invisibility, grenade-launcher fallback, player and bot reloads, 60-round/15-second Gatling, timed prison sword instant kill, shatter animation, normal and large airdrop pools, shotgun boost, final-stand popup, shield, unlimited-duration rocket flight with finite fuel, invisibility pickup and perspective rendering, Chinese floating fade, respawn and victory.\r\n" +
                 "Two WPF peers over actual TCP loopback; separate pistol loadouts, input, mouse aiming, firing, double jump, grenade, large-crate Gatling and sword kill animation, rocket-flight pickup and thrust, invisibility state synchronization, version rejection and disconnect.\r\n" +
                 "Actual WPF renders at 96 DPI, three themes and two fixed sizes, popup visible/fading/gone frames, reload progress arc, shatter animation, overhead impact percent and offscreen direction arrows.\r\n" +
                 "Not tested on two physical computers or through physical mouse/keyboard automation. Preferences and clipboard untouched.\r\n");

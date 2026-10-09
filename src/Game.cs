@@ -15,11 +15,11 @@ namespace StickMayhem {
     public sealed class Platform { public double X, Y, Width; }
     public sealed class Arena { public string Name; public Platform[] Platforms; }
     public static class Rules {
-        public const string Version = "StickMayhem/1.3.0";
+        public const string Version = "StickMayhem/1.3.1";
         public const double Dt = 1.0 / 60, Width = 1000, Height = 600, Gravity = 1450;
         public const int StarterCount = 3;
         public static readonly Weapon[] Weapons = {
-            new Weapon { Name = "左轮", Interval = .52, Speed = 1420, Push = 300, Pellets = 1, Spread = 0, Magazine = 6, Ammo = 18, Reload = 3 },
+            new Weapon { Name = "左轮", Interval = .52, Speed = 1420, Push = 420, Pellets = 1, Spread = 0, Magazine = 6, Ammo = 18, Reload = 3 },
             new Weapon { Name = "USP", Interval = .25, Speed = 1280, Push = 185, Pellets = 1, Spread = .018, Magazine = 12, Ammo = 36, Reload = 2 },
             new Weapon { Name = "格洛克", Interval = .11, Speed = 1180, Push = 92, Pellets = 1, Spread = .05, Magazine = 20, Ammo = 60, Reload = 1.5, Automatic = true },
             new Weapon { Name = "霰弹枪", Interval = .8, Speed = 900, Push = 180, Pellets = 6, Spread = .14, Magazine = 8, Ammo = 8 },
@@ -315,7 +315,7 @@ namespace StickMayhem {
                 g.X += g.Vx * Rules.Dt; g.Y += g.Vy * Rules.Dt;
                 var landing = Rules.Arenas[State.Map].Platforms.Where(t => oldY <= t.Y - 5 && g.Y >= t.Y - 5 && g.Vy > 0 && g.X >= t.X && g.X <= t.X + t.Width).OrderBy(t => t.Y).FirstOrDefault();
                 if (landing != null) { g.Y = landing.Y - 5; g.Vy *= -.48; g.Vx *= .72; }
-                if (g.Fuse <= 0) { Explode(g.X, g.Y, 155, 730); State.Grenades.Remove(g); }
+                if (g.Fuse <= 0) { Explode(g.X, g.Y, g.Launched ? 155 : 175, g.Launched ? 730 : 940); State.Grenades.Remove(g); }
                 else if (g.X < -150 || g.X > 1150 || g.Y > 760) State.Grenades.Remove(g);
             }
             State.NextCrate -= Rules.Dt;
@@ -335,12 +335,15 @@ namespace StickMayhem {
                     var landing = Rules.Arenas[State.Map].Platforms.Where(t => crate.X >= t.X && crate.X <= t.X + t.Width && oldY <= t.Y - 10 && crate.Y >= t.Y - 10).OrderBy(t => t.Y).FirstOrDefault();
                     if (landing != null) { crate.Y = landing.Y - 10; crate.Vy = 0; crate.Landed = true; }
                 }
-                var picker = State.Players.Where(p => p.Lives > 0 && p.Respawn <= 0 && Math.Abs(p.X - crate.X) < 29 && Math.Abs(p.Y - 20 - crate.Y) < 32).OrderBy(p => Math.Abs(p.X - crate.X)).FirstOrDefault();
+                var picker = State.Players.Where(p => p.Lives > 0 && p.Respawn <= 0 && p.Weapon != 6 && p.Weapon != 8 &&
+                    Math.Abs(p.X - crate.X) < 29 && Math.Abs(p.Y - 20 - crate.Y) < 32).OrderBy(p => Math.Abs(p.X - crate.X)).FirstOrDefault();
                 if (picker != null) {
                     picker.Weapon = crate.Weapon; picker.Magazine = Rules.Weapons[crate.Weapon].Magazine;
                     picker.Reserve = crate.Weapon < Rules.StarterCount ? -1 : Math.Max(0, Rules.Weapons[crate.Weapon].Ammo - picker.Magazine); picker.ReloadTime = 0;
                     picker.WeaponTime = crate.Weapon == 6 || crate.Weapon == 8 ? 15 : 0;
+                    if (crate.Weapon == 8) picker.InvisibleTime = 5;
                     picker.Cooldown = .12; string pickup = String.IsNullOrEmpty(Rules.Weapons[crate.Weapon].Pickup) ? Rules.Weapons[crate.Weapon].Name : Rules.Weapons[crate.Weapon].Pickup;
+                    if (crate.Weapon == 8) pickup += " · 隐身5秒";
                     Popup(picker, pickup); State.Crates.Remove(crate);
                     Log("成员 " + (picker.Seat + 1) + " 获得 " + pickup + (pickup == Rules.Weapons[crate.Weapon].Name ? "" : "（" + Rules.Weapons[crate.Weapon].Name + "）"));
                 } else if (crate.Y > 720 || crate.Age > 24) State.Crates.Remove(crate);
