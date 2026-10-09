@@ -27,6 +27,8 @@ namespace StickMayhem {
         double aimX = 750, aimY = 450, lastTime, accumulated, receivedAt;
         bool firing;
         MatchOptions hostOptions;
+        readonly List<MatchOptions> roomOptions = new List<MatchOptions>();
+        readonly Dictionary<int, int> roomSeats = new Dictionary<int, int>();
         string[] addresses = new string[0];
         readonly HashSet<Key> pressed = new HashSet<Key>();
         Peer peer;
@@ -40,6 +42,8 @@ namespace StickMayhem {
         internal bool IsPlaying { get { return playing && !stopped; } }
         internal bool IsMinimal { get { return minimal; } }
         internal int Seat { get { return seat; } }
+        internal int RoomCount { get { return roomOptions.Count; } }
+        internal string DebugState { get { return "playing=" + playing + ", stopped=" + stopped + ", finished=" + (Current != null && Current.Finished) + ", status=" + (lobbyStatus == null ? "" : lobbyStatus.Text); } }
         internal int ListeningPort { get { return peer == null ? 0 : peer.ListeningPort; } }
 
         public PanelWindow(bool verification) {
@@ -97,7 +101,7 @@ namespace StickMayhem {
         internal void ChooseStarter(int value) { if (value < 0 || value >= Rules.StarterCount || peer != null) return; starter = value; SavePreferences(); Refresh(); }
         void Build() {
             string addr = address == null ? "" : address.Text, p = port == null ? Wire.Port.ToString() : port.Text;
-            string message = lobbyStatus == null ? "选择自己的开局武器。同一局域网，一人建房、另一人加入。" : lobbyStatus.Text;
+            string message = lobbyStatus == null ? "选择自己的开局武器。同一局域网，最多 6 人加入房间。" : lobbyStatus.Text;
             Palette(); MinWidth = MinHeight = 0; MaxWidth = MaxHeight = Double.PositiveInfinity;
             Width = minimal ? 392 : 548; Height = minimal ? 300 : 474;
             MinWidth = MaxWidth = Width; MinHeight = MaxHeight = Height; Background = back; Foreground = ink;
@@ -130,7 +134,7 @@ namespace StickMayhem {
                 starters[i].ToolTip = weapon.Name + " · " + weapon.Magazine + " 发弹匣 · 换弹 " + weapon.Reload.ToString("0.##") + " 秒" + (weapon.Automatic ? " · 可连发" : " · 单发"); weapons.Children.Add(starters[i]); }
             Put(lobby, weapons, 2, 0);
             var config = new Grid(); config.ColumnDefinitions.Add(new ColumnDefinition()); config.ColumnDefinitions.Add(new ColumnDefinition());
-            mapButton = Btn("地图：" + Rules.Arenas[map].Name, delegate { map = (map + 1) % 3; SavePreferences(); Refresh(); }, false);
+            mapButton = Btn("地图：" + Rules.Arenas[map].Name, delegate { map = (map + 1) % Rules.Arenas.Length; SavePreferences(); Refresh(); }, false);
             mapButton.ToolTip = "点击切换地图，联机以房主选择为准"; Put(config, mapButton, 0, 0);
             livesButton = Btn("生命：" + lives, delegate { lives = lives == 3 ? 5 : lives == 5 ? 7 : lives == 7 ? 10 : 3; SavePreferences(); Refresh(); }, false);
             livesButton.ToolTip = "点击切换 3 / 5 / 7 / 10 命，联机以房主选择为准"; Put(config, livesButton, 0, 1); Put(lobby, config, 3, 0);
@@ -144,7 +148,7 @@ namespace StickMayhem {
             lobbyStatus.VerticalAlignment = VerticalAlignment.Top; lobbyStatus.Margin = new Thickness(0, 5, 0, 0); Put(lobby, lobbyStatus, 6, 0);
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             leaveButton = Btn("离开", Leave, false); resumeButton = Btn("返回项目", delegate { ShowPage("live"); }, false);
-            hostButton = Btn("创建房间", delegate { StartHost(ParsePort()); }, false); joinButton = Btn("加入", JoinUi, false);
+            hostButton = Btn("创建房间", delegate { if (host && peer != null) StartRoom(); else StartHost(ParsePort()); }, false); joinButton = Btn("加入", JoinUi, false);
             foreach (var button in new[] { leaveButton, resumeButton, hostButton, joinButton }) buttons.Children.Add(button); Put(lobby, buttons, 7, 0);
         }
         void BuildLive() {
@@ -175,7 +179,7 @@ namespace StickMayhem {
         }
         void BuildHelp() {
             help = new Grid(); body.Children.Add(help);
-            var text = T("火柴人平台竞技\n\n用枪和爆炸物把对手击退出场外，掉落扣一命，最后存活者获胜。\n\n鼠标瞄准；左键射击，右键炸弹。A / D 移动，W / ↑ 跳跃；空格也能跳跃，获得火箭飞行器后长按空格飞行。S / ↓ 穿过平台。\n\n开局只选手枪，均为无限备弹但需要换弹：左轮 6 发、威力最高、换弹 3 秒；USP 12 发、换弹 2 秒；格洛克 20 发、威力最低、换弹 1.5 秒且可按住左键连发。\n\n武器空投不含开局手枪，约每 7–10 秒出现；包括霰弹枪、狙击枪、火箭筒、加特林和榴弹发射器。榴弹会抛物线飞行并爆炸。加特林 100 发、持有 30 秒倒计时；打空或倒计时结束立即扣一命。\n\n增益补给每 8–10 秒随机刷新护盾、火箭飞行器或隐身装置。护盾持续 6 秒；火箭飞行器没有持有时限，但燃料为 3 秒，长按空格消耗；隐身持续 5 秒，自己半透明，对手视角消失。\n\n每条命有 3 枚炸弹，爆炸可以把自己轰飞。命中累积冲击值，越高越容易被打飞；重生清零并获得 1.8 秒保护。最后一条命复活显示“背水一战”，随后淡出。\n\n地图与生命数由房主决定，双方可选不同开局手枪。默认端口 42673。房主统一计算物理、命中、换弹、补给、击退与胜负。断线后停止，离开再重建。\n\n顶栏 test 与电脑练习。切页、失去焦点和最小化会释放输入，对局继续。设置保存在 preferences.ini，对局不保存。", 10, true);
+            var text = T("火柴人平台竞技\n\n用枪和爆炸物把对手击退出场外，掉落扣一命，最后存活者获胜。\n\n鼠标瞄准；左键射击/挥剑，右键炸弹。A / D 移动，W / ↑ 跳跃；空格也能跳跃，获得火箭飞行器后长按空格飞行。S / ↓ 穿过平台。\n\n开局只选手枪，均为无限备弹但需要换弹：左轮 6 发、换弹 3 秒且冲击增强；USP 12 发、换弹 2 秒；格洛克 20 发、换弹 1.5 秒且可连发。换弹时角色头顶圆环显示进度。\n\n普通武器箱约每 7–10 秒掉落霰弹枪、狙击枪、火箭筒、榴弹发射器、突击步枪或冲锋枪。突击步枪 30 发弹匣另有 1 个备用弹匣，冲击略低于左轮、射速略低于格洛克；冲锋枪也是 30 发弹匣另有 1 个备用弹匣，冲击等同 USP、射速略快于格洛克。两者耗尽后都会切回开局手枪。手投炸弹范围和冲击力增强。大空投箱约每 28–36 秒掉落加特林“牢张的愤怒”或近战“坐牢之剑”。两把武器都限时 15 秒；持有时无法被其他武器箱或大空投替换。加特林 60 发，打空/超时会碎裂并扣一命；剑击中即死并附带 5 秒隐身，人物也会碎裂。\n\n增益补给每 8–10 秒随机刷新护盾、火箭飞行器或隐身装置。护盾持续 6 秒；火箭飞行器没有持有时限，但燃料为 3 秒，长按空格消耗；隐身持续 5 秒，自己半透明，对手视角消失。\n\n每条命有 3 枚炸弹，爆炸可以把自己轰飞。命中累积冲击值，越高越容易被打飞；重生清零并获得 1.8 秒保护。最后一条命复活显示“背水一战”，随后淡出。\n\n最多 6 人局域网联机，房主为 1 号，加入者依次编号 2–6；至少 2 人加入后房主点“开始对战”。六张地图各有六个出生点，地图与生命数由房主决定，默认端口 42673。房主统一计算物理、命中、换弹、补给、击退与胜负。断线后停止，离开再重建。\n\n顶栏 test 与电脑练习。切页、失去焦点和最小化会释放输入，对局继续。设置保存在 preferences.ini，对局不保存。", 10, true);
             text.TextWrapping = TextWrapping.Wrap; text.VerticalAlignment = VerticalAlignment.Top;
             help.Children.Add(new ScrollViewer { Content = text, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         }
@@ -244,6 +248,7 @@ namespace StickMayhem {
         void JoinUi() { int value = ParsePort(); if (value < 0) return; try { StartJoin(Wire.Endpoint(address.Text, value)); } catch (Exception ex) { lobbyStatus.Text = ex.Message; } }
         void Reset() {
             Engine = null; Current = previous = null; playing = practice = stopped = false; accumulated = 0;
+            roomOptions.Clear(); roomSeats.Clear();
             pressed.Clear(); firing = false; inputSeq = jumpSerial = bombSerial = dropSerial = 0;
         }
         void Dispatch(Peer source, Action action) {
@@ -252,44 +257,62 @@ namespace StickMayhem {
         void Attach(Peer source) {
             peer = source; fingerprint = Wire.Fingerprint();
             source.Connected += delegate { Dispatch(source, delegate {
-                lobbyStatus.Text = "已连接，正在校验…"; if (!host) source.Send(new Message { Kind = "hello", Fingerprint = fingerprint, Options = OptionsNow() });
+                if (!host) { lobbyStatus.Text = "已连接，正在申请玩家编号…"; source.Send(new Message { Kind = "hello", Fingerprint = fingerprint, Options = OptionsNow() }); }
+                else if (Engine == null) lobbyStatus.Text = "房间已建 · " + roomOptions.Count + "/6 人 · 等待加入后点击开始。";
+                Refresh();
             }); };
             source.Received += m => Dispatch(source, delegate { Receive(m); });
             source.Disconnected += text => Dispatch(source, delegate { Disconnect(text); });
         }
         internal void StartHost(int value) {
-            if (value < 0 || peer != null) return; Reset(); host = true; seat = 0; hostOptions = OptionsNow();
+            if (value < 0 || peer != null) return; Reset(); host = true; seat = 0; hostOptions = OptionsNow(); roomOptions.Add(hostOptions);
             try { var source = new Peer(); Attach(source); source.Host(value); addresses = Wire.Addresses(source.ListeningPort); address.Text = addresses[0];
-                lobbyStatus.Text = "房间已创建。复制完整地址给对方，双方校验后自动开局。"; }
+                lobbyStatus.Text = "房间已建 · 1/6 人 · 最多 5 名玩家加入，全部到齐后点击开始。"; }
             catch (Exception ex) { if (peer != null) peer.Dispose(); peer = null; lobbyStatus.Text = "创建失败：" + ex.Message; }
             Refresh();
         }
         internal void StartJoin(IPEndPoint endpoint) {
-            if (peer != null) return; Reset(); host = false; seat = 1;
+            if (peer != null) return; Reset(); host = false; seat = -1;
             var source = new Peer(); Attach(source); lobbyStatus.Text = "正在连接…"; source.Join(endpoint); Refresh();
+        }
+        internal void StartRoom() {
+            if (!host || peer == null || playing || roomOptions.Count < 2) return;
+            Engine = new Match(roomOptions.ToArray(), Environment.TickCount); Current = Engine.State;
+            foreach (var entry in roomSeats) peer.SendTo(entry.Key, new Message { Kind = "welcome", Fingerprint = fingerprint, Seat = entry.Value, State = Rules.Copy(Current) });
+            BeginPlay(); Refresh();
         }
         void BeginPlay() {
             playing = true; stopped = false; lastTime = clock.Elapsed.TotalSeconds; accumulated = 0;
-            aimX = seat == 0 ? 760 : 240; aimY = Current.Players[seat].Y - 25;
-            lobbyStatus.Text = "对局已开始，点击返回项目继续。"; ShowPage("live"); SendInput();
+            var target = Current.Players.Where(p => p.Seat != seat && p.Lives > 0).FirstOrDefault();
+            aimX = target == null ? 500 : target.X; aimY = target == null ? Current.Players[seat].Y - 25 : target.Y - 25;
+            lobbyStatus.Text = "已分配 " + (seat + 1) + " 号玩家，对局已开始。"; ShowPage("live"); SendInput();
         }
         void Receive(Message m) {
             if (m.Protocol != 1) { Reject("协议不一致，请使用同一份程序包。"); return; }
             if (m.Kind == "reject") { Disconnect(m.Text ?? "版本校验失败。"); return; }
             if (host) {
-                if (m.Kind == "hello" && Engine == null) {
-                    if (m.Fingerprint != fingerprint || !Match.ValidOptions(m.Options)) { Reject("程序或开局选项不一致，请使用相同版本。"); return; }
-                    Engine = new Match(hostOptions, m.Options, Environment.TickCount); Current = Engine.State;
-                    peer.Send(new Message { Kind = "welcome", Fingerprint = fingerprint, State = Rules.Copy(Current) }); BeginPlay(); return;
+                if (m.Kind == "hello") {
+                    if (Engine != null) { peer.SendTo(m.ConnectionId, new Message { Kind = "reject", Text = "本局已经开始，无法中途加入。" }); return; }
+                    if (m.Fingerprint != fingerprint || !Match.ValidOptions(m.Options)) { peer.SendTo(m.ConnectionId, new Message { Kind = "reject", Text = "程序校验失败，请使用相同版本。" }); return; }
+                    int assigned;
+                    if (!roomSeats.TryGetValue(m.ConnectionId, out assigned)) {
+                        if (roomOptions.Count >= 6) { peer.SendTo(m.ConnectionId, new Message { Kind = "reject", Text = "房间已满，最多 6 人。" }); return; }
+                        assigned = roomOptions.Count; roomSeats[m.ConnectionId] = assigned;
+                        roomOptions.Add(new MatchOptions { Starter = m.Options.Starter, Map = hostOptions.Map, Lives = hostOptions.Lives });
+                    }
+                    peer.SendTo(m.ConnectionId, new Message { Kind = "waiting", Seat = assigned, Text = "已分配 " + (assigned + 1) + " 号玩家，等待房主开始。" });
+                    lobbyStatus.Text = "房间已建 · " + roomOptions.Count + "/6 人 · 已加入玩家按顺序编号，点击开始对战。"; Refresh(); return;
                 }
-                if (m.Kind == "input" && Engine != null && playing) {
-                    if (Current.Finished) return;
-                    if (!Engine.Submit(1, m.Input)) { Reject("输入校验失败，对局已停止。"); return; } return;
+                if (m.Kind == "input") {
+                    if (Engine == null || !playing || Current.Finished) return;
+                    int playerSeat;
+                    if (!roomSeats.TryGetValue(m.ConnectionId, out playerSeat) || !Engine.Submit(playerSeat, m.Input)) { Reject("输入校验失败，对局已停止。"); return; } return;
                 }
             } else {
+                if (m.Kind == "waiting") { seat = m.Seat; lobbyStatus.Text = m.Text ?? ("已分配 " + (seat + 1) + " 号玩家，等待房主开始。"); Refresh(); return; }
                 if (m.Kind == "welcome" && Current == null) {
                     if (m.Fingerprint != fingerprint || !Wire.Valid(m.State)) { Disconnect("开局状态校验失败。"); return; }
-                    Current = m.State; BeginPlay(); return;
+                    seat = m.Seat; Current = m.State; BeginPlay(); return;
                 }
                 if (m.Kind == "state" && Current != null && playing) {
                     if (!Wire.Valid(m.State) || m.State.Session != Current.Session) { Disconnect("收到无效状态，对局已停止。"); return; }
@@ -297,7 +320,7 @@ namespace StickMayhem {
                     previous = Current; Current = m.State; receivedAt = clock.Elapsed.TotalSeconds; Refresh(); return;
                 }
             }
-            Reject("房间消息状态不匹配。");
+            Reject("房间消息状态不匹配：" + m.Kind + " / 当前状态=" + (Current != null) + " / 对局中=" + playing);
         }
         void Reject(string text) {
             if (peer != null) peer.Send(new Message { Kind = "reject", Text = text });
@@ -324,15 +347,15 @@ namespace StickMayhem {
         void Tick() {
             double now = clock.Elapsed.TotalSeconds, delta = Math.Min(.12, now - lastTime); lastTime = now;
             visualTick++;
-            if (CanPlay()) {
-                if (visualTick % 2 == 0) SendInput();
+            if (playing && !stopped && Current != null) {
+                if (CanPlay() && visualTick % 2 == 0) SendInput();
                 if (host || practice) {
-                    accumulated += delta;
-                    while (accumulated >= Rules.Dt && !Current.Finished) {
+                    if (!Current.Finished || Current.Shatters.Count > 0) accumulated += delta;
+                    while (accumulated >= Rules.Dt && (!Current.Finished || Current.Shatters.Count > 0)) {
                         accumulated -= Rules.Dt;
-                        if (practice) Engine.Submit(1, bot.Think(Current, 1));
+                        if (practice && !Current.Finished) Engine.Submit(1, bot.Think(Current, 1));
                         Engine.Step();
-                        if (host && (Current.Tick % 2 == 0 || Current.Finished)) Snapshot();
+                        if (host && Current.Tick % 2 == 0) Snapshot();
                     }
                 }
             }
@@ -344,21 +367,22 @@ namespace StickMayhem {
         }
         internal void Refresh() {
             if (status == null) return; bool busy = peer != null;
-            hostButton.IsEnabled = joinButton.IsEnabled = !busy; leaveButton.IsEnabled = busy || Current != null; resumeButton.IsEnabled = Current != null;
+            hostButton.Content = host && busy ? "开始对战" : "创建房间";
+            hostButton.IsEnabled = !busy || host && !playing && roomOptions.Count >= 2; joinButton.IsEnabled = !busy; leaveButton.IsEnabled = busy || Current != null; resumeButton.IsEnabled = Current != null;
             address.IsReadOnly = busy && host; port.IsEnabled = !busy; copyButton.IsEnabled = address.Text.Length > 0; addressButton.IsEnabled = addresses.Length > 1;
             for (int i = 0; i < Rules.StarterCount; i++) { starters[i].IsEnabled = !busy; starters[i].Background = i == starter ? surface : Brushes.Transparent; starters[i].BorderThickness = new Thickness(i == starter ? 1 : 0); }
             mapButton.IsEnabled = livesButton.IsEnabled = !busy; mapButton.Content = "地图：" + Rules.Arenas[map].Name; livesButton.Content = "生命：" + lives;
-            status.Text = stopped ? "连接已断开 · 操作停止" : practice ? "本地练习" : playing ? "局域网 · 已连接" : busy ? "房间 · 等待连接" : "协作 · 未连接";
+            status.Text = stopped ? "连接已断开 · 操作停止" : practice ? "本地练习" : playing ? "局域网 · " + (seat + 1) + "号" : busy ? "房间 · " + roomOptions.Count + "/6人" : "协作 · 未连接";
             if (Current == null) return;
-            var mine = Current.Players[seat]; var enemy = Current.Players[1 - seat];
-            string ammo = mine.ReloadTime > 0 ? "换弹 " + mine.ReloadTime.ToString("0.0") + "s" : mine.Magazine + "/" + (mine.Reserve < 0 ? "∞" : mine.Reserve.ToString());
+            var mine = Current.Players[seat]; var enemy = Current.Players.Where(p => p.Seat != seat && p.Lives > 0).FirstOrDefault() ?? Current.Players[(seat + 1) % Current.Players.Length];
+            string ammo = mine.ReloadTime > 0 ? "换弹 " + mine.ReloadTime.ToString("0.0") + "s" : Rules.Weapons[mine.Weapon].Melee ? "近战" : mine.Magazine + "/" + (mine.Reserve < 0 ? "∞" : mine.Reserve.ToString());
             string buff = mine.ShieldTime > 0 ? " · 盾 " + mine.ShieldTime.ToString("0.0") + "s" : mine.JetOwned ? " · 火箭燃料 " + mine.JetFuel.ToString("0.0") + "s" : mine.InvisibleTime > 0 ? " · 隐身 " + mine.InvisibleTime.ToString("0.0") + "s" : "";
-            if (mine.Weapon == 6) buff += " · 倒计时 " + mine.GatlingTime.ToString("0.0") + "s";
-            ownHud.Text = "我 " + mine.Lives + "命 · " + Rules.Weapons[mine.Weapon].Name + " " + ammo + " · 弹 " + mine.Bombs + buff +
+            if (mine.Weapon == 6 || mine.Weapon == 8) buff += " · 剩余 " + mine.WeaponTime.ToString("0.0") + "s";
+            ownHud.Text = (Current.Players.Length > 2 ? (mine.Seat + 1) + "号 " : "我 ") + mine.Lives + "命 · " + Rules.Weapons[mine.Weapon].Name + " " + ammo + " · 弹 " + mine.Bombs + buff +
                 (minimal ? "" : " · 冲击 " + (int)mine.Impact + "%");
-            enemyHud.Text = "对  " + enemy.Lives + " 命 · " + Rules.Weapons[enemy.Weapon].Name + (enemy.Weapon == 6 ? " · " + enemy.Magazine + "发/" + enemy.GatlingTime.ToString("0") + "s" : "") + (minimal ? "" : " · 冲击 " + (int)enemy.Impact + "%");
-            timerHud.Text = String.Format("{0:00}:{1:00} · {2} · 武 {3}s · 补 {4}s", (int)Current.Seconds / 60, (int)Current.Seconds % 60,
-                Rules.Arenas[Current.Map].Name, (int)Math.Ceiling(Current.NextCrate), (int)Math.Ceiling(Current.NextPower));
+            enemyHud.Text = Current.Players.Length > 2 ? "存活 " + Current.Players.Count(p => p.Lives > 0) + "/" + Current.Players.Length + " · 编号显示在角色头顶" : "对  " + enemy.Lives + " 命 · " + Rules.Weapons[enemy.Weapon].Name + (enemy.Weapon == 6 ? " · " + enemy.Magazine + "发/" + enemy.WeaponTime.ToString("0") + "s" : enemy.Weapon == 8 ? " · " + enemy.WeaponTime.ToString("0") + "s" : "") + (minimal ? "" : " · 冲击 " + (int)enemy.Impact + "%");
+            timerHud.Text = String.Format("{0:00}:{1:00} · {2} · 武 {3}s · 大 {4}s · 补 {5}s", (int)Current.Seconds / 60, (int)Current.Seconds % 60,
+                Rules.Arenas[Current.Map].Name, (int)Math.Ceiling(Current.NextCrate), (int)Math.Ceiling(Current.NextBigCrate), (int)Math.Ceiling(Current.NextPower));
             hint.Text = stopped ? "断线已停止。连接页离开后可重建。" : Current.Finished ? "本局结束 · 联机离开重建 / 点 test 重新练习" :
                 "A/D 移动 · W 跳跃 · 空格跳/飞行 · 左键射击 · 右键炸弹";
             recordText.Text = String.Join("\n", Current.Log.AsEnumerable().Reverse());
@@ -373,7 +397,7 @@ namespace StickMayhem {
                     if (p[0] == "appearance" && (p[1] == "light" || p[1] == "dark")) appearance = p[1];
                     if (p[0] == "mode") minimal = p[1] == "minimal";
                     if (p[0] == "starter" && Int32.TryParse(p[1], out value) && value >= 0 && value < Rules.StarterCount) starter = value;
-                    if (p[0] == "map" && Int32.TryParse(p[1], out value) && value >= 0 && value < 3) map = value;
+                    if (p[0] == "map" && Int32.TryParse(p[1], out value) && value >= 0 && value < Rules.Arenas.Length) map = value;
                     if (p[0] == "lives" && Int32.TryParse(p[1], out value) && (value == 3 || value == 5 || value == 7 || value == 10)) lives = value;
                 }
             } catch (IOException) { }

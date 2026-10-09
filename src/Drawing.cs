@@ -85,16 +85,21 @@ namespace StickMayhem {
                 dc.DrawLine(new Pen(Muted, 1.2 / scale), new Point(platform.X, platform.Y), new Point(platform.X + platform.Width, platform.Y));
             }
             foreach (var crate in State.Crates) {
-                double size = Math.Max(22, 8 / scale);
-                var cp = new Pen(Muted, 1 / scale);
+                double size = Math.Max(crate.Large ? 38 : 22, (crate.Large ? 12 : 8) / scale);
+                var cp = new Pen(crate.Large ? Accent : Muted, (crate.Large ? 1.8 : 1) / scale);
                 dc.DrawRectangle(Surface, cp, new Rect(crate.X - size / 2, crate.Y - size / 2, size, size));
                 dc.DrawLine(thin, new Point(crate.X - size / 2, crate.Y - size / 2), new Point(crate.X + size / 2, crate.Y + size / 2));
                 dc.DrawLine(thin, new Point(crate.X + size / 2, crate.Y - size / 2), new Point(crate.X - size / 2, crate.Y + size / 2));
+                if (crate.Large) {
+                    dc.DrawRectangle(null, cp, new Rect(crate.X - size / 2 + 4 / scale, crate.Y - size / 2 + 4 / scale, size - 8 / scale, size - 8 / scale));
+                    Text(dc, "大", crate.X, crate.Y - 6, 10 / scale, Accent, true);
+                }
                 if (!crate.Landed) {
-                    dc.DrawLine(cp, new Point(crate.X - 36, crate.Y - 39), new Point(crate.X + 36, crate.Y - 39));
-                    dc.DrawLine(cp, new Point(crate.X - 36, crate.Y - 39), new Point(crate.X, crate.Y - 10));
-                    dc.DrawLine(cp, new Point(crate.X + 36, crate.Y - 39), new Point(crate.X, crate.Y - 10));
-                    dc.DrawEllipse(null, cp, new Point(crate.X, crate.Y - 42), 36, 10);
+                    double parachute = crate.Large ? 48 : 36;
+                    dc.DrawLine(cp, new Point(crate.X - parachute, crate.Y - 39), new Point(crate.X + parachute, crate.Y - 39));
+                    dc.DrawLine(cp, new Point(crate.X - parachute, crate.Y - 39), new Point(crate.X, crate.Y - size / 2));
+                    dc.DrawLine(cp, new Point(crate.X + parachute, crate.Y - 39), new Point(crate.X, crate.Y - size / 2));
+                    dc.DrawEllipse(null, cp, new Point(crate.X, crate.Y - 42), parachute, 10);
                 }
             }
             foreach (var item in State.Powerups) {
@@ -151,6 +156,12 @@ namespace StickMayhem {
                 Point hand = new Point(x + dx * 15, y - 25 + dy * 15);
                 dc.DrawLine(fp, new Point(x, y - 27), hand);
                 dc.DrawLine(new Pen(color, 2 / scale), hand, new Point(x + dx * 31, y - 25 + dy * 31));
+                if (p.Weapon == 8 && p.MeleeSwing > 0) {
+                    double swing = 72 + 10 * Math.Sin((.28 - p.MeleeSwing) / .28 * Math.PI);
+                    Point tip = new Point(x + dx * swing, y - 25 + dy * swing);
+                    dc.DrawLine(new Pen(color, 3 / scale), hand, tip);
+                    dc.DrawLine(new Pen(Muted, 2 / scale), new Point(hand.X - dy * 6, hand.Y + dx * 6), new Point(hand.X + dy * 6, hand.Y - dx * 6));
+                }
                 if (p.JetOwned) {
                     dc.DrawRectangle(Surface, fp, new Rect(x - 10, y - 28, 5, 14));
                     if (p.JetFuel > 0) {
@@ -162,17 +173,36 @@ namespace StickMayhem {
                 if (p.Invulnerable > 0) {
                     dc.DrawEllipse(null, thin, new Point(x, y - 24), 26, 31); dc.Pop();
                 }
-                Text(dc, p.Seat == Seat ? "我" : "对", x, y + 6, (Minimal ? 8 : 9) / scale, Muted, true);
+                Text(dc, (p.Seat + 1) + "号", x, y + 6, (Minimal ? 8 : 9) / scale, p.Seat == Seat ? Accent : Muted, true);
                 Text(dc, ((int)p.Impact).ToString() + "%", Rules.Clamp(x, 95, 905), Math.Max(4, y - 58), (Minimal ? 9 : 10) / scale,
                     p.Impact > 0 ? color : Muted, true);
+                double reloadDuration = Rules.Weapons[p.Weapon].Reload;
+                if (p.ReloadTime > 0 && reloadDuration > 0) {
+                    double cx = x, cy = y - 76, radius = 7.5, progress = Rules.Clamp(1 - p.ReloadTime / reloadDuration, 0, 1);
+                    dc.DrawEllipse(null, new Pen(Muted, 1.4 / scale), new Point(cx, cy), radius, radius);
+                    if (progress >= .999) dc.DrawEllipse(null, new Pen(Accent, 2.4 / scale), new Point(cx, cy), radius, radius);
+                    else if (progress > 0) {
+                        double angle = progress * Math.PI * 2;
+                        Point end = new Point(cx + Math.Sin(angle) * radius, cy - Math.Cos(angle) * radius);
+                        var arc = new StreamGeometry();
+                        using (var geometry = arc.Open()) {
+                            geometry.BeginFigure(new Point(cx, cy - radius), false, false);
+                            geometry.ArcTo(end, new Size(radius, radius), 0, progress > .5, SweepDirection.Clockwise, true, false);
+                        }
+                        dc.DrawGeometry(null, new Pen(Accent, 2.4 / scale), arc);
+                    }
+                }
                 if (p.PopupTime > 0) {
                     dc.PushOpacity(Match.PopupOpacity(p));
-                    Text(dc, p.Popup, Rules.Clamp(x, 95, 905), Math.Max(4, y - (p.Weapon == 6 ? 100 : 82) - Match.PopupRise(p)), (Minimal ? 10 : 12) / scale, Ink, true); dc.Pop();
+                    Text(dc, p.Popup, Rules.Clamp(x, 95, 905), Math.Max(4, y - (p.Weapon == 6 || p.Weapon == 8 ? 100 : 82) - Match.PopupRise(p)), (Minimal ? 10 : 12) / scale, Ink, true); dc.Pop();
                 }
-                if (p.Weapon == 6 && p.GatlingTime > 0)
-                    Text(dc, "牢张的愤怒 · " + Math.Ceiling(p.GatlingTime).ToString("0") + "s", Rules.Clamp(x, 95, 905), Math.Max(4, y - 80), (Minimal ? 8 : 10) / scale, Ink, true);
+                if ((p.Weapon == 6 || p.Weapon == 8) && p.WeaponTime > 0 && p.PopupTime <= 0) {
+                    string weaponLabel = p.Weapon == 6 ? "牢张的愤怒" : "坐牢之剑";
+                    Text(dc, weaponLabel + " · " + Math.Ceiling(p.WeaponTime).ToString("0") + "s", Rules.Clamp(x, 95, 905), Math.Max(4, y - 98), (Minimal ? 8 : 10) / scale, Ink, true);
+                }
                 if (opacity < 1) dc.Pop();
             }
+            foreach (var shatter in State.Shatters) DrawShatter(dc, shatter, scale);
             foreach (var p in State.Players) {
                 if (p.Lives <= 0 || p.Respawn > 0 || !IsOffscreen(p.X, p.Y)) continue;
                 double opacity = PlayerOpacity(p.Seat, Seat, p.InvisibleTime);
@@ -189,7 +219,7 @@ namespace StickMayhem {
                 using (var geometry = arrow.Open()) { geometry.BeginFigure(tip, true, true); geometry.LineTo(left, true, false); geometry.LineTo(right, true, false); }
                 Brush color = p.Seat == Seat ? Accent : Ink;
                 dc.DrawGeometry(color, null, arrow);
-                Text(dc, p.Seat == Seat ? "我" : "对", back.X - dx * 5, back.Y - dy * 5, (Minimal ? 8 : 9) / scale, color, true);
+                Text(dc, (p.Seat + 1) + "号", back.X - dx * 5, back.Y - dy * 5, (Minimal ? 8 : 9) / scale, color, true);
                 if (opacity < 1) dc.Pop();
             }
             if (Ready && AimVisible) {
@@ -203,6 +233,28 @@ namespace StickMayhem {
                 string title = State.Winner < 0 ? "平局" : State.Winner == Seat ? "本局获胜" : "本局结束";
                 Text(dc, title, ActualWidth / 2, 14, Minimal ? 12 : 16, Ink, true);
             }
+        }
+        void FragmentLine(DrawingContext dc, Pen pen, double x, double y, double ax, double ay, double bx, double by, double vx, double vy, double t) {
+            double fall = 530 * t * t / 2;
+            dc.DrawLine(pen, new Point(x + ax + vx * t, y + ay + vy * t + fall),
+                new Point(x + bx + vx * t, y + by + vy * t + fall));
+        }
+        void DrawShatter(DrawingContext dc, Shatter shatter, double scale) {
+            double elapsed = .85 - shatter.Time, opacity = Rules.Clamp(shatter.Time / .85, 0, 1);
+            if (opacity <= 0) return;
+            Brush color = shatter.Owner == Seat ? Accent : Ink;
+            var piece = new Pen(color, 1.8 / scale) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+            dc.PushOpacity(opacity);
+            double hx = shatter.X - 72 * elapsed, hy = shatter.Y - 39 - 185 * elapsed + 265 * elapsed * elapsed;
+            dc.DrawEllipse(null, piece, new Point(hx, hy), 4.5, 4.5);
+            FragmentLine(dc, piece, shatter.X, shatter.Y, 0, -31, 0, -14, 28, -148, elapsed);
+            FragmentLine(dc, piece, shatter.X, shatter.Y, 0, -28, -14, -23, -155, -185, elapsed);
+            FragmentLine(dc, piece, shatter.X, shatter.Y, 0, -28, 14, -23, 155, -185, elapsed);
+            FragmentLine(dc, piece, shatter.X, shatter.Y, -14, -23, -22, -13, -205, -85, elapsed);
+            FragmentLine(dc, piece, shatter.X, shatter.Y, 14, -23, 22, -13, 205, -85, elapsed);
+            FragmentLine(dc, piece, shatter.X, shatter.Y, 0, -14, -8, 0, -105, -45, elapsed);
+            FragmentLine(dc, piece, shatter.X, shatter.Y, 0, -14, 8, 0, 105, -45, elapsed);
+            dc.Pop();
         }
     }
 }
