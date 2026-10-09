@@ -1,0 +1,4 @@
+preferences.ini
+bin/
+obj/
+*.user
