@@ -175,7 +175,7 @@ namespace StickMayhem {
         }
         void BuildHelp() {
             help = new Grid(); body.Children.Add(help);
-            var text = T("火柴人平台竞技\n\n用枪和爆炸物把对手击退出场外，掉落扣一命，最后存活者获胜。\n\n鼠标瞄准；左键射击，右键炸弹。A / D 移动，W / ↑ 跳跃；空格也能跳跃，获得火箭飞行器后长按空格飞行。S / ↓ 穿过平台。\n\n开局只选手枪，均为无限备弹但需要换弹：左轮 6 发、威力最高、换弹 3 秒；USP 12 发、换弹 2 秒；格洛克 20 发、威力最低、换弹 1.5 秒且可按住左键连发。\n\n武器空投不含开局手枪，约每 7–10 秒出现；包括霰弹枪、狙击枪、火箭筒、加特林和榴弹发射器。榴弹会抛物线飞行并爆炸。加特林 100 发、持有 30 秒倒计时；打空或倒计时结束立即扣一命。\n\n增益补给每 8–10 秒随机刷新护盾、火箭飞行器或隐身装置。护盾持续 6 秒；火箭飞行器没有持有时限，但燃料为 3 秒，长按空格消耗；隐身持续 5 秒，自己半透明，对手视角消失。\n\n每条命有 3 枚炸弹，爆炸可以把自己轰飞。命中累积冲击值，越高越容易被打飞；重生清零并获得 1.8 秒保护。最后一条命复活显示“背水一战”，随后淡出。\n\n地图与生命数由房主决定，双方可选不同开局手枪。默认端口 42673。房主统一计算物理、命中、换弹、补给、击退与胜负。断线后停止，离开再重建。\n\n顶栏 test 与电脑练习。切页、失去焦点和最小化会释放输入，对局继续。设置保存在 preferences.ini，对局不保存。", 10, true);
+            var text = T("火柴人平台竞技\n\n用枪和爆炸物把对手击退出场外，掉落扣一命，最后存活者获胜。\n\n鼠标瞄准；左键射击/挥剑，右键炸弹。A / D 移动，W / ↑ 跳跃；空格也能跳跃，获得火箭飞行器后长按空格飞行。S / ↓ 穿过平台。\n\n开局只选手枪，均为无限备弹但需要换弹：左轮 6 发、换弹 3 秒；USP 12 发、换弹 2 秒；格洛克 20 发、换弹 1.5 秒且可连发。换弹时角色头顶圆环显示进度。\n\n普通武器箱约每 7–10 秒掉落霰弹枪、狙击枪、火箭筒或榴弹发射器。霰弹枪增强为 6 发散射、冲击力提高；榴弹会抛物线飞行并爆炸。大空投箱约每 28–36 秒掉落加特林“牢张的愤怒”或近战“坐牢之剑”。两把武器都限时 15 秒；加特林 60 发，打空/超时会碎裂并扣一命，剑击中即死，人物也会碎裂。\n\n增益补给每 8–10 秒随机刷新护盾、火箭飞行器或隐身装置。护盾持续 6 秒；火箭飞行器没有持有时限，但燃料为 3 秒，长按空格消耗；隐身持续 5 秒，自己半透明，对手视角消失。\n\n每条命有 3 枚炸弹，爆炸可以把自己轰飞。命中累积冲击值，越高越容易被打飞；重生清零并获得 1.8 秒保护。最后一条命复活显示“背水一战”，随后淡出。\n\n地图与生命数由房主决定，双方可选不同开局手枪。默认端口 42673。房主统一计算物理、命中、换弹、补给、击退与胜负。断线后停止，离开再重建。\n\n顶栏 test 与电脑练习。切页、失去焦点和最小化会释放输入，对局继续。设置保存在 preferences.ini，对局不保存。", 10, true);
             text.TextWrapping = TextWrapping.Wrap; text.VerticalAlignment = VerticalAlignment.Top;
             help.Children.Add(new ScrollViewer { Content = text, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         }
@@ -324,15 +324,15 @@ namespace StickMayhem {
         void Tick() {
             double now = clock.Elapsed.TotalSeconds, delta = Math.Min(.12, now - lastTime); lastTime = now;
             visualTick++;
-            if (CanPlay()) {
-                if (visualTick % 2 == 0) SendInput();
+            if (playing && !stopped && Current != null) {
+                if (CanPlay() && visualTick % 2 == 0) SendInput();
                 if (host || practice) {
-                    accumulated += delta;
-                    while (accumulated >= Rules.Dt && !Current.Finished) {
+                    if (!Current.Finished || Current.Shatters.Count > 0) accumulated += delta;
+                    while (accumulated >= Rules.Dt && (!Current.Finished || Current.Shatters.Count > 0)) {
                         accumulated -= Rules.Dt;
-                        if (practice) Engine.Submit(1, bot.Think(Current, 1));
+                        if (practice && !Current.Finished) Engine.Submit(1, bot.Think(Current, 1));
                         Engine.Step();
-                        if (host && (Current.Tick % 2 == 0 || Current.Finished)) Snapshot();
+                        if (host && Current.Tick % 2 == 0) Snapshot();
                     }
                 }
             }
@@ -351,14 +351,14 @@ namespace StickMayhem {
             status.Text = stopped ? "连接已断开 · 操作停止" : practice ? "本地练习" : playing ? "局域网 · 已连接" : busy ? "房间 · 等待连接" : "协作 · 未连接";
             if (Current == null) return;
             var mine = Current.Players[seat]; var enemy = Current.Players[1 - seat];
-            string ammo = mine.ReloadTime > 0 ? "换弹 " + mine.ReloadTime.ToString("0.0") + "s" : mine.Magazine + "/" + (mine.Reserve < 0 ? "∞" : mine.Reserve.ToString());
+            string ammo = mine.ReloadTime > 0 ? "换弹 " + mine.ReloadTime.ToString("0.0") + "s" : Rules.Weapons[mine.Weapon].Melee ? "近战" : mine.Magazine + "/" + (mine.Reserve < 0 ? "∞" : mine.Reserve.ToString());
             string buff = mine.ShieldTime > 0 ? " · 盾 " + mine.ShieldTime.ToString("0.0") + "s" : mine.JetOwned ? " · 火箭燃料 " + mine.JetFuel.ToString("0.0") + "s" : mine.InvisibleTime > 0 ? " · 隐身 " + mine.InvisibleTime.ToString("0.0") + "s" : "";
-            if (mine.Weapon == 6) buff += " · 倒计时 " + mine.GatlingTime.ToString("0.0") + "s";
+            if (mine.Weapon == 6 || mine.Weapon == 8) buff += " · 剩余 " + mine.WeaponTime.ToString("0.0") + "s";
             ownHud.Text = "我 " + mine.Lives + "命 · " + Rules.Weapons[mine.Weapon].Name + " " + ammo + " · 弹 " + mine.Bombs + buff +
                 (minimal ? "" : " · 冲击 " + (int)mine.Impact + "%");
-            enemyHud.Text = "对  " + enemy.Lives + " 命 · " + Rules.Weapons[enemy.Weapon].Name + (enemy.Weapon == 6 ? " · " + enemy.Magazine + "发/" + enemy.GatlingTime.ToString("0") + "s" : "") + (minimal ? "" : " · 冲击 " + (int)enemy.Impact + "%");
-            timerHud.Text = String.Format("{0:00}:{1:00} · {2} · 武 {3}s · 补 {4}s", (int)Current.Seconds / 60, (int)Current.Seconds % 60,
-                Rules.Arenas[Current.Map].Name, (int)Math.Ceiling(Current.NextCrate), (int)Math.Ceiling(Current.NextPower));
+            enemyHud.Text = "对  " + enemy.Lives + " 命 · " + Rules.Weapons[enemy.Weapon].Name + (enemy.Weapon == 6 ? " · " + enemy.Magazine + "发/" + enemy.WeaponTime.ToString("0") + "s" : enemy.Weapon == 8 ? " · " + enemy.WeaponTime.ToString("0") + "s" : "") + (minimal ? "" : " · 冲击 " + (int)enemy.Impact + "%");
+            timerHud.Text = String.Format("{0:00}:{1:00} · {2} · 武 {3}s · 大 {4}s · 补 {5}s", (int)Current.Seconds / 60, (int)Current.Seconds % 60,
+                Rules.Arenas[Current.Map].Name, (int)Math.Ceiling(Current.NextCrate), (int)Math.Ceiling(Current.NextBigCrate), (int)Math.Ceiling(Current.NextPower));
             hint.Text = stopped ? "断线已停止。连接页离开后可重建。" : Current.Finished ? "本局结束 · 联机离开重建 / 点 test 重新练习" :
                 "A/D 移动 · W 跳跃 · 空格跳/飞行 · 左键射击 · 右键炸弹";
             recordText.Text = String.Join("\n", Current.Log.AsEnumerable().Reverse());

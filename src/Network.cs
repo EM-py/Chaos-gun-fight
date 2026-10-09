@@ -58,8 +58,8 @@ namespace StickMayhem {
             if (s == null || String.IsNullOrEmpty(s.Session) || s.Session.Length > 64 || s.Tick < 0 || s.Map < 0 || s.Map >= Rules.Arenas.Length ||
                 s.Winner < -2 || s.Winner > 1 || s.Players == null || s.Players.Length != 2 ||
                 s.Shots == null || s.Shots.Count > 170 || s.Grenades == null || s.Grenades.Count > 8 || s.Crates == null || s.Crates.Count > 4 ||
-                s.Powerups == null || s.Powerups.Count > 3 || s.Bursts == null || s.Bursts.Count > 16 || s.Log == null || s.Log.Count > 60 ||
-                !Number(s.NextCrate, -1, 11) || !Number(s.NextPower, -1, 11)) return false;
+                s.Powerups == null || s.Powerups.Count > 3 || s.Bursts == null || s.Bursts.Count > 16 || s.Shatters == null || s.Shatters.Count > 8 || s.Log == null || s.Log.Count > 60 ||
+                !Number(s.NextCrate, -1, 11) || !Number(s.NextBigCrate, -1, 37.1) || !Number(s.NextPower, -1, 11)) return false;
             for (int i = 0; i < 2; i++) {
                 var p = s.Players[i];
                 if (p == null || p.Seat != i || p.Lives < 0 || p.Lives > 10 || p.Starter < 0 || p.Starter >= Rules.StarterCount || p.Weapon < 0 || p.Weapon >= Rules.Weapons.Length ||
@@ -68,7 +68,7 @@ namespace StickMayhem {
                     !Number(p.AimX, -300, 1300) || !Number(p.AimY, -250, 850) || !Number(p.Impact, 0, 180) ||
                     !Number(p.Cooldown, 0, 1.3) || !Number(p.ReloadTime, 0, 3.1) || !Number(p.BombCooldown, 0, .8) || !Number(p.Invulnerable, 0, 2) ||
                     !Number(p.Respawn, 0, 1.2) || !Number(p.DropTime, 0, .3) || !Number(p.HitStun, 0, .2) ||
-                    !Number(p.ShieldTime, 0, 6.1) || !Number(p.JetFuel, 0, 3.1) || !Number(p.InvisibleTime, 0, 5.1) || !Number(p.GatlingTime, 0, 30.1) ||
+                    !Number(p.ShieldTime, 0, 6.1) || !Number(p.JetFuel, 0, 3.1) || !Number(p.InvisibleTime, 0, 5.1) || !Number(p.WeaponTime, 0, 15.1) || !Number(p.MeleeSwing, 0, .3) ||
                     !Number(p.PopupTime, 0, 1.7) || p.Popup == null || p.Popup.Length > 30) return false;
             }
             foreach (var shot in s.Shots) if (shot == null || shot.Owner < 0 || shot.Owner > 1 || !Number(shot.X, -160, 1160) || !Number(shot.Y, -230, 750) ||
@@ -76,10 +76,12 @@ namespace StickMayhem {
             foreach (var g in s.Grenades) if (g == null || g.Owner < 0 || g.Owner > 1 || !Number(g.X, -200, 1200) || !Number(g.Y, -800, 800) ||
                 !Number(g.Vx, -1000, 1000) || !Number(g.Vy, -900, 1800) || !Number(g.Fuse, 0, 1.4)) return false;
             foreach (var c in s.Crates) if (c == null || c.Weapon < 0 || c.Weapon >= Rules.Weapons.Length || !Number(c.X, 0, 1000) || !Number(c.Y, -40, 740) ||
-                !Number(c.Age, 0, 25) || !Number(c.Vy, 0, 120)) return false;
+                !Number(c.Age, 0, 25) || !Number(c.Vy, 0, 120) || c.Large && c.Weapon != 6 && c.Weapon != 8 || !c.Large && (c.Weapon == 6 || c.Weapon == 8)) return false;
             foreach (var p in s.Powerups) if (p == null || p.Kind < 0 || p.Kind > 2 || !Number(p.X, 0, 1000) || !Number(p.Y, -40, 740) ||
                 !Number(p.Age, 0, 19) || !Number(p.Vy, 0, 110)) return false;
             foreach (var b in s.Bursts) if (b == null || !Number(b.X, -200, 1200) || !Number(b.Y, -850, 850) || !Number(b.Radius, 0, 200) || !Number(b.Time, 0, .3)) return false;
+            foreach (var shatter in s.Shatters) if (shatter == null || shatter.Owner < 0 || shatter.Owner > 1 || !Number(shatter.X, -200, 1200) ||
+                !Number(shatter.Y, -800, 740) || !Number(shatter.Time, 0, .86)) return false;
             return s.Log.All(l => l != null && l.Length < 180);
         }
     }
