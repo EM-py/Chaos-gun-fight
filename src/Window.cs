@@ -207,6 +207,11 @@ namespace StickMayhem {
             Put(header, T("更新日志 · v" + UpdateService.CurrentVersion, 11, false), 0, 0);
             var version = Btn("版本更新", delegate { ShowPage("updater"); }, false); version.Height = 22; version.FontSize = 9; Put(header, version, 0, 1); Put(changelog, header, 0, 0);
             var items = new StackPanel();
+            items.Children.Add(Note("v1.6.6", new[] {
+                "test 练习人机识别坐牢之剑近战距离，会主动靠近后再挥击。",
+                "克莱博人机会评估反冲与平台边缘，避免开局把自己震出场外。",
+                "玩家隐身时人机不再追踪实时位置，会朝搜索方向随机试射。"
+            }, true));
             items.Children.Add(Note("v1.6.5", new[] {
                 "突击步枪改为点按触发三连发，短促连射后停顿，冲击力略微提高。",
                 "电能冲锋枪改为 30 发总弹量，打空后切回开局手枪。",

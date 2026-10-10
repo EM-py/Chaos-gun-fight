@@ -1,5 +1,5 @@
-PASS: 2083 assertions.
-Twelve full AI battles across all six maps; USP and revolver held automatic fire; Focus SMG blue 45-round spin-up; ordinary-drop electric SMG with separate impact gain, Glock knockback and 50% movement slow; Kraber ammo counter, five-shot magazine, one-second bolt cycle, instant shattering hits and backblast; doubled movement and fire rate with white countdown; large-drop pool and replacement rules; all existing weapons, explosive effects, buffs and LAN rules.
+PASS: 2077 assertions.
+Practice AI sword melee approach, Kraber recoil-safe movement, and blind probing fire against invisible players; twelve full AI battles across all six maps; pistol reloads and automatic fire; Focus SMG spin-up; Kraber cycle/backblast; weapon and powerup rules.
 Actual TCP loopback WPF multiplayer: six peers and numbered seats, synchronized snapshots/input, Gatling and sword actions, new speed pickup and Kraber large-drop weapon, rocket flight, invisibility, version rejection and disconnect.
 Actual WPF renders at 96 DPI, three themes and two fixed sizes, popup visible/fading/gone frames, reload progress arc, shatter animation, overhead impact percent, offscreen direction arrows, collapsible changelog, and GitHub update page.
 Not tested on two physical computers or through physical mouse/keyboard automation. Preferences and clipboard untouched.

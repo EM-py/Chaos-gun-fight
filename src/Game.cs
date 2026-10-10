@@ -16,7 +16,7 @@ namespace StickMayhem {
     public sealed class Platform { public double X, Y, Width; }
     public sealed class Arena { public string Name; public Platform[] Platforms; public double[] Spawns; }
     public static class Rules {
-        public const string Version = "StickMayhem/1.6.5";
+        public const string Version = "StickMayhem/1.6.6";
         public const double Dt = 1.0 / 60, Width = 1000, Height = 600, Gravity = 1450;
         public const int StarterCount = 3;
         public static bool LargeDropWeapon(int weapon) { return weapon == 6 || weapon == 8 || weapon == 11 || weapon == 12; }
@@ -449,11 +449,29 @@ namespace StickMayhem {
     }
     public sealed class Bot {
         int seq, jump, bomb, drop;
+        int nextBlindShotTick, nextBlindAimTick;
         readonly Random random;
+        double lastSeenX, lastSeenY, probeX = 500, probeY = 300;
+        bool hasLastSeen, lastFire;
         public Bot(int seed) { random = new Random(seed); }
         public InputFrame Think(MatchState state, int seat) {
-            var p = state.Players[seat]; var enemy = state.Players.Where(opponent => opponent.Seat != seat && opponent.Lives > 0).OrderBy(opponent => Math.Abs(opponent.X - p.X) + Math.Abs(opponent.Y - p.Y) * .5).FirstOrDefault() ?? state.Players[(seat + 1) % state.Players.Length];
-            double target = enemy.X;
+            var p = state.Players[seat]; var opponents = state.Players.Where(opponent => opponent.Seat != seat && opponent.Lives > 0).ToArray();
+            var visible = opponents.Where(opponent => opponent.InvisibleTime <= 0).ToArray();
+            var enemy = (visible.Length > 0 ? visible : opponents).OrderBy(opponent => visible.Length == 0 ? opponent.Seat : Math.Abs(opponent.X - p.X) + Math.Abs(opponent.Y - p.Y) * .5).FirstOrDefault()
+                ?? state.Players[(seat + 1) % state.Players.Length];
+            bool hidden = enemy.InvisibleTime > 0;
+            double enemyX, enemyY, enemyVx, enemyVy;
+            if (!hidden) { lastSeenX = enemy.X; lastSeenY = enemy.Y; hasLastSeen = true; enemyX = enemy.X; enemyY = enemy.Y; enemyVx = enemy.Vx; enemyVy = enemy.Vy; }
+            else {
+                if (state.Tick >= nextBlindAimTick) {
+                    double centerX = hasLastSeen ? lastSeenX : 500, centerY = hasLastSeen ? lastSeenY : 300;
+                    probeX = Rules.Clamp(centerX + (random.NextDouble() - .5) * (hasLastSeen ? 500 : 1000), 40, 960);
+                    probeY = Rules.Clamp(centerY + (random.NextDouble() - .5) * (hasLastSeen ? 360 : 600), 40, 560);
+                    nextBlindAimTick = state.Tick + random.Next(9, 25);
+                }
+                enemyX = probeX; enemyY = probeY; enemyVx = enemyVy = 0;
+            }
+            double target = enemyX;
             var crate = state.Crates.OrderBy(c => Math.Abs(c.X - p.X) + Math.Abs(c.Y - p.Y) * .4).FirstOrDefault();
             if (crate != null && crate.Landed && (p.Weapon == p.Starter || p.Magazine < 3)) target = crate.X;
             var power = state.Powerups.OrderBy(c => Math.Abs(c.X - p.X) + Math.Abs(c.Y - p.Y) * .4).FirstOrDefault();
@@ -461,21 +479,50 @@ namespace StickMayhem {
             var platforms = Rules.Arenas[state.Map].Platforms;
             bool edge = p.Grounded && !platforms.Any(t => p.X + Math.Sign(target - p.X) * 55 > t.X && p.X + Math.Sign(target - p.X) * 55 < t.X + t.Width && Math.Abs(t.Y - p.Y) < 1);
             bool falling = p.Y > 530 && p.Vy > 0;
-            bool climb = enemy.Y < p.Y - 65 || crate != null && crate.Y < p.Y - 65;
+            bool climb = enemyY < p.Y - 65 || crate != null && crate.Y < p.Y - 65;
             if (state.Tick % 27 == 0 && p.Jumps < 2 && (edge || falling || climb || random.NextDouble() < .12)) jump++;
-            if (state.Tick % 120 == 0 && p.Bombs > 0 && Math.Abs(enemy.X - p.X) < 240 && Math.Abs(enemy.Y - p.Y) < 100) bomb++;
-            if (state.Tick % 80 == 0 && p.Grounded && enemy.Y > p.Y + 80 && Math.Abs(enemy.X - p.X) < 100) drop++;
+            if (state.Tick % 120 == 0 && p.Bombs > 0 && Math.Abs(enemyX - p.X) < 240 && Math.Abs(enemyY - p.Y) < 100) bomb++;
+            if (state.Tick % 80 == 0 && p.Grounded && enemyY > p.Y + 80 && Math.Abs(enemyX - p.X) < 100) drop++;
             if (p.X < 115) target = 300; if (p.X > 885) target = 700;
             double distance = target - p.X;
-            bool move = Math.Abs(distance) > (crate != null && target == crate.X ? 14 : 180);
-            double lead = Math.Min(.35, Math.Abs(enemy.X - p.X) / Rules.Weapons[p.Weapon].Speed);
-            bool fire = enemy.Lives > 0 && enemy.Respawn <= 0;
-            if (!Rules.Weapons[p.Weapon].Automatic) fire = fire && p.Cooldown <= 0 && p.ReloadTime <= 0 && p.Magazine > 0;
+            bool melee = Rules.Weapons[p.Weapon].Melee;
+            bool move = Math.Abs(distance) > (crate != null && target == crate.X ? 14 : melee ? 62 : 180);
+            var weapon = Rules.Weapons[p.Weapon];
+            double lead = hidden || weapon.Speed <= 0 ? 0 : Math.Min(.35, Math.Abs(enemyX - p.X) / weapon.Speed);
+            double aimX = hidden ? probeX : enemyX + enemyVx * lead;
+            double aimY = hidden ? probeY : enemyY - 25 + enemyVy * lead;
+            bool active = enemy.Lives > 0 && enemy.Respawn <= 0;
+            bool fire;
+            if (melee) fire = active && Math.Abs(enemyX - p.X) <= 70 && Math.Abs(enemyY - p.Y) <= 52 && p.Cooldown <= 0 && p.ReloadTime <= 0 && !lastFire;
+            else if (hidden) {
+                bool probeReady = state.Tick >= nextBlindShotTick && p.Cooldown <= 0 && p.ReloadTime <= 0;
+                fire = active && probeReady && (!weapon.DirectKill || RecoilSafe(p, aimX, aimY, platforms, state.Mode));
+                if (fire) nextBlindShotTick = state.Tick + random.Next(9, 22);
+            } else {
+                fire = active;
+                if (!weapon.Automatic) fire = fire && p.Cooldown <= 0 && p.ReloadTime <= 0 && p.Magazine > 0 && !lastFire;
+                if (weapon.DirectKill) fire = fire && p.Magazine > 0 && RecoilSafe(p, aimX, aimY, platforms, state.Mode);
+            }
+            lastFire = fire;
             return new InputFrame { Session = state.Session, Seq = ++seq, Jump = jump, Bomb = bomb, Drop = drop,
                 Left = move && distance < 0, Right = move && distance > 0, Jet = p.JetFuel > 0 && (falling || climb),
                 Fire = fire,
-                AimX = Rules.Clamp(enemy.X + enemy.Vx * lead, -200, 1200),
-                AimY = Rules.Clamp(enemy.Y - 25 + enemy.Vy * lead, -200, 800) };
+                AimX = Rules.Clamp(aimX, -200, 1200), AimY = Rules.Clamp(aimY, -200, 800) };
+        }
+        static bool RecoilSafe(Fighter p, double aimX, double aimY, Platform[] platforms, int mode) {
+            double dx = aimX - p.X, dy = aimY - (p.Y - 25), length = Math.Sqrt(dx * dx + dy * dy);
+            if (length < 1) return false;
+            dx /= length; dy /= length;
+            double recoilX = Rules.Clamp(p.Vx - dx * 790, -1050, 1050);
+            double predictedX = p.X + recoilX * .38;
+            if (predictedX < -30 || predictedX > 1030) return false;
+            if (p.Grounded) {
+                var support = platforms.Where(t => p.X >= t.X - 1 && p.X <= t.X + t.Width + 1 && Math.Abs(t.Y - p.Y) < 2).OrderBy(t => t.Y).FirstOrDefault();
+                if (support != null && (predictedX < support.X + 20 || predictedX > support.X + support.Width - 20)) return false;
+            } else if (predictedX < 65 || predictedX > 935) return false;
+            double recoilY = Rules.Clamp(p.Vy - dy * 790, -900, 950);
+            double predictedY = p.Y + recoilY * .24 + Rules.GravityFor(mode) * .5 * .24 * .24;
+            return predictedY < 680;
         }
     }
 }

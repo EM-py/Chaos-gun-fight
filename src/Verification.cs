@@ -230,6 +230,32 @@ namespace StickMayhem {
                 while (p.ReloadTime > 0) { enemy.Invulnerable = 2; m.Submit(1, bot.Think(m.State, 1)); m.Step(); }
                 Check(p.Lives > 0 && p.Reserve == -1 && p.Magazine > 0 && p.ReloadTime == 0, "practice bot reloads infinite-reserve pistol " + pistol);
             }
+            m = New(0, 0); p = m.State.Players[1]; enemy = m.State.Players[0]; p.Weapon = 8; p.WeaponTime = 15; p.Magazine = 1; p.X = 700; enemy.X = 600; p.Y = enemy.Y = 499; p.Grounded = true;
+            var swordBot = new Bot(801); var swordApproach = swordBot.Think(m.State, 1);
+            Check(swordApproach.Left && !swordApproach.Fire, "practice bot closes to melee range before swinging prison sword");
+            p.X = 650; enemy.X = 600; var swordAttack = new Bot(802).Think(m.State, 1);
+            Check(!swordAttack.Left && swordAttack.Fire, "practice bot swings prison sword only once enemy is in reach");
+            m = new Match(new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 1 }, new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 1 }, 812);
+            p = m.State.Players[1]; enemy = m.State.Players[0]; p.X = 850; p.Y = 499; p.Grounded = true; p.Vx = 0; enemy.X = 150; enemy.Y = 499;
+            var kraberBot = new Bot(813); var unsafeKraber = kraberBot.Think(m.State, 1);
+            Check(!unsafeKraber.Fire && unsafeKraber.Left, "practice bot approaches the arena center instead of firing Kraber outward from spawn");
+            p.X = 550; p.Vx = -275; p.Grounded = true; var safeKraber = kraberBot.Think(m.State, 1);
+            Check(safeKraber.Fire, "practice bot fires Kraber after moving to a recoil-safe position");
+            m = new Match(new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 1 }, new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 1 }, 814);
+            p = m.State.Players[1]; enemy = m.State.Players[0]; enemy.Invulnerable = 1000; m.State.NextCrate = m.State.NextBigCrate = m.State.NextPower = 1000;
+            var safeBot = new Bot(815);
+            for (int t = 0; t < 360; t++) { enemy.Invulnerable = 1000; m.Submit(1, safeBot.Think(m.State, 1)); m.Step(); }
+            Check(p.Lives == 3 && p.Respawns == 0 && p.X > 0 && p.X < 1000 && p.Y < 690, "practice Kraber bot survives recoil during extended Sky Sniper play");
+            m = New(0, 0); m.State.Players[0].InvisibleTime = 5;
+            var hiddenA = Rules.Copy(m.State); var hiddenB = Rules.Copy(m.State); hiddenA.Players[0].X = 170; hiddenB.Players[0].X = 830;
+            var blindA = new Bot(816).Think(hiddenA, 1); var blindB = new Bot(816).Think(hiddenB, 1);
+            Check(blindA.AimX == blindB.AimX && blindA.AimY == blindB.AimY && blindA.Left == blindB.Left && blindA.Right == blindB.Right && blindA.Fire == blindB.Fire,
+                "invisible opponent's exact position cannot affect bot aim or movement");
+            var hiddenMatch = New(0, 0); hiddenMatch.State.Players[0].InvisibleTime = 5; hiddenMatch.State.NextCrate = hiddenMatch.State.NextBigCrate = hiddenMatch.State.NextPower = 1000;
+            var probingBot = new Bot(817); bool probingFire = false;
+            for (int t = 0; t < 120; t++) { hiddenMatch.State.Tick = t; hiddenMatch.State.Players[0].InvisibleTime = 5;
+                var probe = probingBot.Think(hiddenMatch.State, 1); probingFire |= probe.Fire; }
+            Check(probingFire, "practice bot periodically fires probing shots while opponent stays invisible");
             Check(ArenaView.PlayerOpacity(0, 0, 5) > 0 && ArenaView.PlayerOpacity(0, 0, 5) <= .12 && ArenaView.PlayerOpacity(0, 1, 5) == 0 && ArenaView.PlayerOpacity(0, 1, 0) == 1,
                 "invisibility renders self faint and hides completely from opponent view");
             Check(!ArenaView.IsOffscreen(500, 325) && ArenaView.IsOffscreen(1080, 325) && ArenaView.IsOffscreen(500, 700), "offscreen detector covers horizontal and vertical exits");
@@ -446,21 +472,21 @@ namespace StickMayhem {
             Render(w, Path.Combine(folder, "final-stand.png"));
             var offscreen = Fixture(); offscreen.Players[0].X = 1080; offscreen.Players[0].Y = 700; offscreen.Players[1].X = -70; offscreen.Players[1].Y = 250;
             w.SetPreview(offscreen); w.Field.State = offscreen; w.Field.Seat = 0; Render(w, Path.Combine(folder, "offscreen-arrows.png"));
-            Check(UpdateService.CurrentVersion == "1.6.5", "application release version");
-            Check(UpdateService.IsNewer("1.6.5", "1.6.4") && !UpdateService.IsNewer("1.6.4", "1.6.5"), "semantic update ordering");
-            var testManifest = UpdateService.ParseManifest("{\"Version\":\"1.6.5\",\"PackageUrl\":\"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
-            Check(testManifest.Version == "1.6.5", "trusted update manifest parsing");
+            Check(UpdateService.CurrentVersion == "1.6.6", "application release version");
+            Check(UpdateService.IsNewer("1.6.6", "1.6.5") && !UpdateService.IsNewer("1.6.5", "1.6.6"), "semantic update ordering");
+            var testManifest = UpdateService.ParseManifest("{\"Version\":\"1.6.6\",\"PackageUrl\":\"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
+            Check(testManifest.Version == "1.6.6", "trusted update manifest parsing");
             Check(w.UpdatePagesReady, "changelog and updater pages constructed");
             w.ShowPage("changelog"); Render(w, Path.Combine(folder, "changelog.png"));
             w.ShowPage("updater"); Render(w, Path.Combine(folder, "version-update.png"));
             File.WriteAllText(Path.Combine(folder, "verification.json"), Rules.Serializer().Serialize(new {
-                Passed = true, Assertions = checks, Version = UpdateService.CurrentVersion, ChangelogUi = true, GitHubUpdateManifest = true, Sha256VerifiedUpdatePackage = true, SafeRestartUpdater = true, Weapons = 14, PistolStarters = 3, StarterPistolsHoldToFire = true, NormalDropsIncludeElectricSMGAndApplyTwoSecondSlow = true, LargeDropsIncludeFocusSMGAndKraber = true, KnockbackAndImpactGainIndependentlyConfigured = true, FocusSMG45RoundSpinUpBlueBullets = true, KraberAmmoOverhead = true, KraberFiveRoundOneSecondBoltInstantKillAndBackblast = true, LargeDropWeaponsCannotBeReplaced = true, SwordPickupGrantsFiveSecondInvisibility = true, RocketBlastBoostAndVisualEffect = true, SpeedBuffDoublesMovementAndFireRateWithWhiteCountdown = true, RevolverAndThrownBombBoosted = true, Maps = 6, MouseAiming = true, DoubleJump = true, ParachuteCrates = true,
+                Passed = true, Assertions = checks, Version = UpdateService.CurrentVersion, ChangelogUi = true, GitHubUpdateManifest = true, Sha256VerifiedUpdatePackage = true, SafeRestartUpdater = true, Weapons = 14, PistolStarters = 3, StarterPistolsHoldToFire = true, NormalDropsIncludeElectricSMGAndApplyTwoSecondSlow = true, LargeDropsIncludeFocusSMGAndKraber = true, KnockbackAndImpactGainIndependentlyConfigured = true, FocusSMG45RoundSpinUpBlueBullets = true, KraberAmmoOverhead = true, KraberFiveRoundOneSecondBoltInstantKillAndBackblast = true, LargeDropWeaponsCannotBeReplaced = true, SwordPickupGrantsFiveSecondInvisibility = true, PracticeBotUsesSwordMeleeRange = true, PracticeBotAvoidsKraberRecoilFalls = true, PracticeBotBlindFiresWithoutInvisibleCoordinates = true, RocketBlastBoostAndVisualEffect = true, SpeedBuffDoublesMovementAndFireRateWithWhiteCountdown = true, RevolverAndThrownBombBoosted = true, Maps = 6, MouseAiming = true, DoubleJump = true, ParachuteCrates = true,
                 MagazineReloads = true, ReloadProgressArc = true, BotPistolReloads = true, GrenadeLauncherFallback = true, ShotgunBoostedImpact = true, ShieldAndRocketFlight = true, JetFuel = true, InvisibilityBothViews = true, Invisibility = true, GrenadeLauncher = true, Gatling60And15SecondFatal = true, PrisonSwordInstantKill = true, ShatterAnimation = true, FinalStandPopup = true,
                 ChineseFloatingFadingPickup = true, CustomStarter = true, TcpTwoWpfPeers = true, AuthoritativePhysics = true,
                 HeadImpactPercent = true, OffscreenArrows = true, DisconnectStops = true, ActualWpfRenders = true, PhysicalTwoComputerTest = false, PhysicalMouseTest = false
             }));
             File.WriteAllText(Path.Combine(folder, "verification.txt"), "PASS: " + checks + " assertions.\r\n" +
-                "Twelve full AI battles across all six maps; USP and revolver held automatic fire; Focus SMG blue 45-round spin-up; ordinary-drop electric SMG with separate impact gain, Glock knockback and 50% movement slow; Kraber ammo counter, five-shot magazine, one-second bolt cycle, instant shattering hits and backblast; doubled movement and fire rate with white countdown; large-drop pool and replacement rules; all existing weapons, explosive effects, buffs and LAN rules.\r\n" +
+                "Practice AI sword melee approach, Kraber recoil-safe movement, and blind probing fire against invisible players; twelve full AI battles across all six maps; pistol reloads and automatic fire; Focus SMG spin-up; Kraber cycle/backblast; weapon and powerup rules.\r\n" +
                 "Actual TCP loopback WPF multiplayer: six peers and numbered seats, synchronized snapshots/input, Gatling and sword actions, new speed pickup and Kraber large-drop weapon, rocket flight, invisibility, version rejection and disconnect.\r\n" +
                 "Actual WPF renders at 96 DPI, three themes and two fixed sizes, popup visible/fading/gone frames, reload progress arc, shatter animation, overhead impact percent, offscreen direction arrows, collapsible changelog, and GitHub update page.\r\n" +
                 "Not tested on two physical computers or through physical mouse/keyboard automation. Preferences and clipboard untouched.\r\n");
