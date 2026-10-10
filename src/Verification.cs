@@ -39,8 +39,15 @@ namespace StickMayhem {
                 "revolver and USP repeat while held at their slower configured fire rates");
             Check(Rules.Weapons[0].Push == 420, "revolver knockback damage increased");
             Check(Rules.Weapons[4].Push == 520, "sniper impact force receives the requested small increase");
-            Check(Rules.Weapons[9].Name == "突击步枪" && Rules.Weapons[9].Magazine == 30 && Rules.Weapons[9].Ammo == 30 && Rules.Weapons[9].Reload == 0 && Rules.Weapons[9].Push < Rules.Weapons[0].Push && Rules.Weapons[9].Push > Rules.Weapons[2].Push && Rules.Weapons[9].Interval > Rules.Weapons[2].Interval && Rules.Weapons[9].Automatic,
-                "assault rifle has thirty total rounds and returns to starter without reloading");
+            var skyMatch = new Match(new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 1 }, new MatchOptions { Starter = 2, Map = 0, Lives = 3 }, 43);
+            Check(skyMatch.State.Mode == 1 && skyMatch.State.Players.All(f => f.Weapon == 12 && f.Magazine == 5 && f.Reserve == 0) && Math.Abs(Rules.GravityFor(skyMatch.State.Mode) - Rules.Gravity * .5) < .01,
+                "Sky Sniper mode starts both players with a Kraber and halves gravity");
+            var normalJump = New(0, 0); var skyJump = new Match(new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 1 }, new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 1 }, 44);
+            normalJump.Submit(0, Frame(normalJump, 1, 0, 0, false, 750, 300)); skyJump.Submit(0, Frame(skyJump, 1, 0, 0, false, 750, 300));
+            for (int i = 0; i < 20; i++) { normalJump.Step(); skyJump.Step(); }
+            Check(skyJump.State.Players[0].Y < normalJump.State.Players[0].Y - 20, "half gravity makes the same jump rise noticeably higher");
+            Check(Rules.Weapons[9].Name == "突击步枪" && Rules.Weapons[9].Magazine == 30 && Rules.Weapons[9].Ammo == 30 && Rules.Weapons[9].Reload == 0 && Rules.Weapons[9].BurstCount == 3 && !Rules.Weapons[9].Automatic && Rules.Weapons[9].Push == 420 && Rules.Weapons[9].BurstInterval < .1 && Rules.Weapons[9].BurstPause > .3,
+                "assault rifle has a three-round burst, Famàs-like recovery pause, slightly higher impact and thirty total rounds");
             Check(Rules.Weapons[10].Name == "冲锋枪" && Rules.Weapons[10].Ammo == 30 && Rules.Weapons[10].Reload == 0 && Rules.Weapons[10].Push == Rules.Weapons[1].Push && Rules.Weapons[10].Interval < Rules.Weapons[2].Interval && Rules.Weapons[10].Automatic,
                 "submachine gun has thirty total rounds, matches USP impact and fires slightly faster than Glock");
             Check(Rules.Weapons.Select(w => w.Recoil).SequenceEqual(new[] { 0, 0, 0, 2, 3, 3, 2, 1, 0, 2, 1, 1, 4, 0 }),
@@ -49,17 +56,24 @@ namespace StickMayhem {
                 "Focus SMG keeps its blue 45-round magazine and increasing rate of fire");
             Check(Rules.Weapons[12].Name == "克莱博" && Rules.Weapons[12].DirectKill && Rules.Weapons[12].BoltAction && Rules.Weapons[12].Magazine == 5 && Rules.Weapons[12].Reload == 1,
                 "Kraber has five shots, one-second bolt reload, instant shattering hits and heavy recoil");
-            Check(Rules.Weapons[13].Name == "电能冲锋枪" && Rules.Weapons[13].Energy && Rules.Weapons[13].SlowTarget && Rules.Weapons[13].Magazine == 30 && Rules.Weapons[13].Ammo == 60 && Rules.Weapons[13].Push == Rules.Weapons[2].Push && Rules.Weapons[13].ImpactPush == Rules.Weapons[10].Push,
-                "ordinary-drop electric SMG uses blue bullets, Glock knockback, SMG impact gain and two magazines");
+            Check(Rules.Weapons[13].Name == "电能冲锋枪" && Rules.Weapons[13].Energy && Rules.Weapons[13].SlowTarget && Rules.Weapons[13].Magazine == 30 && Rules.Weapons[13].Ammo == 30 && Rules.Weapons[13].Reload == 0 && Rules.Weapons[13].Push == Rules.Weapons[2].Push && Rules.Weapons[13].ImpactPush == Rules.Weapons[10].Push,
+                "ordinary-drop electric SMG uses blue bullets, Glock knockback, SMG impact gain and one thirty-round supply");
             foreach (int index in new[] { 9, 10 }) {
                 m = New(index, 0); p = m.State.Players[0]; p.X = 500; p.Magazine = Rules.Weapons[index].Magazine; p.Reserve = 0;
-                for (int shotTick = 0; shotTick < 600 && p.Weapon == index; shotTick++) {
+                for (int shotTick = 0; shotTick < 1200 && p.Weapon == index; shotTick++) {
                     p.X = 500; p.Y = 499; p.Vx = p.Vy = 0; p.Grounded = true;
-                    m.Submit(0, Frame(m, 0, 0, 0, true, p.X + 100, p.Y - 25)); m.Step();
+                    m.Submit(0, Frame(m, 0, 0, 0, index != 9 || shotTick % 40 == 0, p.X + 100, p.Y - 25)); m.Step();
                 }
                 Check(p.Weapon == p.Starter && p.Magazine == Rules.Weapons[p.Starter].Magazine && p.Reserve == -1 && p.ReloadTime == 0,
                     Rules.Weapons[index].Name + " spends its only thirty-round supply then switches to starter pistol");
             }
+            m = New(9, 0); p = m.State.Players[0]; p.X = 500; p.Y = 499; p.Grounded = true;
+            m.Submit(0, Frame(m, 0, 0, 0, true, p.X + 100, p.Y - 25)); m.Step();
+            Check(m.State.Shots.Count == 1 && p.BurstRemaining == 2, "one trigger starts a three-round assault-rifle burst");
+            m.Submit(0, Frame(m, 0, 0, 0, false, p.X + 100, p.Y - 25));
+            for (int i = 0; i < 20 && p.BurstRemaining > 0; i++) m.Step();
+            Check(m.State.Shots.Count == 3 && p.Magazine == 27 && p.BurstRemaining == 0 && p.Cooldown > .3,
+                "assault-rifle burst completes after trigger release and then pauses");
             foreach (int index in Enumerable.Range(Rules.StarterCount, Rules.Weapons.Length - Rules.StarterCount)) {
                 m = New(index, 0); p = m.State.Players[0]; p.X = 500; p.Y = 499; p.Vx = p.Vy = 0; p.Grounded = true;
                 m.Submit(0, Frame(m, 0, 0, 0, true, p.X + 100, p.Y - 25)); m.Step();
@@ -432,10 +446,10 @@ namespace StickMayhem {
             Render(w, Path.Combine(folder, "final-stand.png"));
             var offscreen = Fixture(); offscreen.Players[0].X = 1080; offscreen.Players[0].Y = 700; offscreen.Players[1].X = -70; offscreen.Players[1].Y = 250;
             w.SetPreview(offscreen); w.Field.State = offscreen; w.Field.Seat = 0; Render(w, Path.Combine(folder, "offscreen-arrows.png"));
-            Check(UpdateService.CurrentVersion == "1.6.4", "application release version");
-            Check(UpdateService.IsNewer("1.6.4", "1.6.3") && !UpdateService.IsNewer("1.6.3", "1.6.4"), "semantic update ordering");
-            var testManifest = UpdateService.ParseManifest("{\"Version\":\"1.6.4\",\"PackageUrl\":\"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
-            Check(testManifest.Version == "1.6.4", "trusted update manifest parsing");
+            Check(UpdateService.CurrentVersion == "1.6.5", "application release version");
+            Check(UpdateService.IsNewer("1.6.5", "1.6.4") && !UpdateService.IsNewer("1.6.4", "1.6.5"), "semantic update ordering");
+            var testManifest = UpdateService.ParseManifest("{\"Version\":\"1.6.5\",\"PackageUrl\":\"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
+            Check(testManifest.Version == "1.6.5", "trusted update manifest parsing");
             Check(w.UpdatePagesReady, "changelog and updater pages constructed");
             w.ShowPage("changelog"); Render(w, Path.Combine(folder, "changelog.png"));
             w.ShowPage("updater"); Render(w, Path.Combine(folder, "version-update.png"));

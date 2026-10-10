@@ -56,7 +56,7 @@ namespace StickMayhem {
         }
         static bool Number(double x, double min, double max) { return Rules.Finite(x) && x >= min && x <= max; }
         public static bool Valid(MatchState s) {
-            if (s == null || String.IsNullOrEmpty(s.Session) || s.Session.Length > 64 || s.Tick < 0 || s.Map < 0 || s.Map >= Rules.Arenas.Length ||
+            if (s == null || String.IsNullOrEmpty(s.Session) || s.Session.Length > 64 || s.Tick < 0 || s.Map < 0 || s.Map >= Rules.Arenas.Length || s.Mode < 0 || s.Mode > 1 ||
                 s.Winner < -2 || s.Players == null || s.Players.Length < 2 || s.Players.Length > 6 || s.Winner >= s.Players.Length ||
                 s.Shots == null || s.Shots.Count > 170 || s.Grenades == null || s.Grenades.Count > 8 || s.Crates == null || s.Crates.Count > 4 ||
                 s.Powerups == null || s.Powerups.Count > 3 || s.Bursts == null || s.Bursts.Count > 16 || s.Shatters == null || s.Shatters.Count > 8 || s.Log == null || s.Log.Count > 60 ||
@@ -64,7 +64,7 @@ namespace StickMayhem {
             for (int i = 0; i < s.Players.Length; i++) {
                 var p = s.Players[i];
                 if (p == null || p.Seat != i || p.Lives < 0 || p.Lives > 10 || p.Starter < 0 || p.Starter >= Rules.StarterCount || p.Weapon < 0 || p.Weapon >= Rules.Weapons.Length ||
-                    p.Magazine < 0 || p.Magazine > 180 || p.Reserve < -1 || p.Reserve > 180 || p.Jumps < 0 || p.Jumps > 2 || p.Bombs < 0 || p.Bombs > 3 ||
+                    p.Magazine < 0 || p.Magazine > 180 || p.Reserve < -1 || p.Reserve > 180 || p.Jumps < 0 || p.Jumps > 2 || p.Bombs < 0 || p.Bombs > 3 || p.BurstRemaining < 0 || p.BurstRemaining > 3 ||
                     !Number(p.X, -200, 1200) || !Number(p.Y, -800, 740) || !Number(p.Vx, -1300, 1300) || !Number(p.Vy, -1200, 1600) ||
                     !Number(p.AimX, -300, 1300) || !Number(p.AimY, -250, 850) || !Number(p.Impact, 0, 180) ||
                     !Number(p.Cooldown, 0, 1.3) || !Number(p.ReloadTime, 0, 3.1) || !Number(p.BombCooldown, 0, .8) || !Number(p.Invulnerable, 0, 2) ||

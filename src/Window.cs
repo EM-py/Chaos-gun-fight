@@ -20,13 +20,13 @@ namespace StickMayhem {
         Grid body, lobby, live, settings, help, records, changelog, updatePage;
         TextBox address, port;
         TextBlock lobbyStatus, status, ownHud, enemyHud, timerHud, hint, recordText;
-        Button hostButton, joinButton, leaveButton, resumeButton, copyButton, addressButton, mapButton, livesButton;
+        Button hostButton, joinButton, leaveButton, resumeButton, copyButton, addressButton, mapButton, livesButton, modeButton;
         Button checkUpdateButton, downloadUpdateButton, installUpdateButton;
         TextBlock updateVersionText, updateStatusText;
         Button[] starters = new Button[Rules.StarterCount];
         string theme = "codex", appearance = "dark", page = "lobby", fingerprint;
         bool minimal, host, practice, playing, stopped;
-        int seat, starter, map, lives = 5, inputSeq, jumpSerial, bombSerial, dropSerial, visualTick;
+        int seat, starter, map, lives = 5, matchMode, inputSeq, jumpSerial, bombSerial, dropSerial, visualTick;
         double aimX = 750, aimY = 450, lastTime, accumulated, receivedAt;
         bool firing;
         MatchOptions hostOptions;
@@ -141,11 +141,13 @@ namespace StickMayhem {
                 starters[i] = Btn(weapon.Name, delegate { ChooseStarter(index); }, i == starter);
                 starters[i].ToolTip = weapon.Name + " · " + weapon.Magazine + " 发弹匣 · 换弹 " + weapon.Reload.ToString("0.##") + " 秒" + (weapon.Automatic ? " · 可连发" : " · 单发"); weapons.Children.Add(starters[i]); }
             Put(lobby, weapons, 2, 0);
-            var config = new Grid(); config.ColumnDefinitions.Add(new ColumnDefinition()); config.ColumnDefinitions.Add(new ColumnDefinition());
+            var config = new Grid(); config.ColumnDefinitions.Add(new ColumnDefinition()); config.ColumnDefinitions.Add(new ColumnDefinition()); config.ColumnDefinitions.Add(new ColumnDefinition());
             mapButton = Btn("地图：" + Rules.Arenas[map].Name, delegate { map = (map + 1) % Rules.Arenas.Length; SavePreferences(); Refresh(); }, false);
             mapButton.ToolTip = "点击切换地图，联机以房主选择为准"; Put(config, mapButton, 0, 0);
             livesButton = Btn("生命：" + lives, delegate { lives = lives == 3 ? 5 : lives == 5 ? 7 : lives == 7 ? 10 : 3; SavePreferences(); Refresh(); }, false);
-            livesButton.ToolTip = "点击切换 3 / 5 / 7 / 10 命，联机以房主选择为准"; Put(config, livesButton, 0, 1); Put(lobby, config, 3, 0);
+            livesButton.ToolTip = "点击切换 3 / 5 / 7 / 10 命，联机以房主选择为准"; Put(config, livesButton, 0, 1);
+            modeButton = Btn("模式：普通", delegate { matchMode = 1 - matchMode; SavePreferences(); Refresh(); }, false);
+            modeButton.ToolTip = "普通对战 / 跳狙飞人：双方开局持有克莱博，重力减半；联机以房主选择为准"; Put(config, modeButton, 0, 2); Put(lobby, config, 3, 0);
             Put(lobby, T("房主地址 · 右侧为端口", 9, true), 4, 0);
             var entry = new Grid(); entry.ColumnDefinitions.Add(new ColumnDefinition());
             foreach (double width in new[] { 23.0, 36.0, 10.0, 57.0 }) entry.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width) });
@@ -188,6 +190,9 @@ namespace StickMayhem {
         void BuildHelp() {
             help = new Grid(); body.Children.Add(help);
             var text = T("火柴人平台竞技\n\n用枪和爆炸物把对手击退出场外，掉落扣一命，最后存活者获胜。\n\n鼠标瞄准；左键射击/挥剑，右键炸弹。A / D 移动，W / ↑ 跳跃；空格也能跳跃，获得火箭飞行器后长按空格飞行。S / ↓ 穿过平台。\n\n开局只选手枪，均为无限备弹但需要换弹：左轮 6 发/3 秒、USP 12 发/2 秒、格洛克 20 发/1.5 秒。三把手枪都可按住左键持续发射，按各自射速间隔出弹。换弹时角色头顶圆环显示进度。\n\n普通武器箱约每 7–10 秒掉落霰弹枪、狙击枪、火箭筒、榴弹发射器、突击步枪、普通冲锋枪或电能冲锋枪。普通电能冲锋枪为 30 发/一个备用弹匣，发蓝色子弹，击退等于格洛克、冲击值增幅等于普通冲锋枪，命中使目标移速降低 50% 并持续 2 秒。突击步枪和普通冲锋枪各 30 发总量，打空切回开局手枪、不再换弹；火箭筒爆炸范围和击退增强并有火焰冲击特效。\n\n除开局手枪外，枪械后坐力等级：霰弹枪2、狙击枪3、火箭筒3、牢张的愤怒2、榴弹发射器1、突击步枪2、普通/专注冲锋枪1、克莱博4、电能冲锋枪0。HUD 显示等级。\n\n大空投箱约每 28–36 秒掉落加特林“牢张的愤怒”、近战“坐牢之剑”、专注冲锋枪或克莱博。加特林和剑限时 15 秒；专注冲锋枪 45 发蓝色子弹，按住开火逐渐加速；克莱博 5 发、每发后枪机装填 1 秒，命中直接碎裂击杀并以后坐力震飞射手，头顶显示剩余子弹数。四把都不能被其他武器箱替换；弹药打空后切回开局手枪。\n\n增益补给每 8–10 秒随机刷新护盾、火箭飞行器、隐身装置或速度道具。出现 5 秒未拾取会闪烁 2 秒后消失。护盾持续 6 秒；火箭飞行器没有持有时限，但燃料为 3 秒；隐身持续 5 秒，自己半透明，对手视角消失；速度持续 5 秒，移动速度和射速翻倍，头顶白色“火力全开”文字及倒计时闪烁。\n\n每条命有 3 枚炸弹，爆炸可以把自己轰飞。命中累积冲击值，越高越容易被打飞；重生清零并获得 1.8 秒保护。最后一条命复活显示“背水一战”，随后淡出。\n\n最多 6 人局域网联机，房主为 1 号，加入者依次编号 2–6；至少 2 人加入后房主点“开始对战”。六张地图各有六个出生点，地图与生命数由房主决定，默认端口 42673。房主统一计算物理、命中、换弹、补给、击退与胜负。断线后停止，离开再重建。\n\n顶栏 test 与电脑练习。切页、失去焦点和最小化会释放输入，对局继续。设置保存在 preferences.ini，对局不保存。", 10, true);
+            text.Text = text.Text.Replace("普通电能冲锋枪为 30 发/一个备用弹匣", "电能冲锋枪为 30 发总弹量、没有备用弹匣")
+                .Replace("突击步枪和普通冲锋枪各 30 发总量", "突击步枪点按一次触发三连发（短促射出后停顿），冲击略高；与普通冲锋枪各 30 发总量")
+                .Replace("\n\n每条命有 3 枚炸弹", "\n\n跳狙飞人模式：双方开局持有克莱博，重力减半，可以跳得更高。\n\n每条命有 3 枚炸弹");
             text.TextWrapping = TextWrapping.Wrap; text.VerticalAlignment = VerticalAlignment.Top;
             help.Children.Add(new ScrollViewer { Content = text, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         }
@@ -202,6 +207,11 @@ namespace StickMayhem {
             Put(header, T("更新日志 · v" + UpdateService.CurrentVersion, 11, false), 0, 0);
             var version = Btn("版本更新", delegate { ShowPage("updater"); }, false); version.Height = 22; version.FontSize = 9; Put(header, version, 0, 1); Put(changelog, header, 0, 0);
             var items = new StackPanel();
+            items.Children.Add(Note("v1.6.5", new[] {
+                "突击步枪改为点按触发三连发，短促连射后停顿，冲击力略微提高。",
+                "电能冲锋枪改为 30 发总弹量，打空后切回开局手枪。",
+                "新增跳狙飞人模式：双方开局持有克莱博，重力减半、跳跃更高。"
+            }, true));
             items.Children.Add(Note("v1.6.4", new[] {
                 "榴弹发射器的榴弹触碰敌人时立即引爆。",
                 "狙击枪单发冲击力小幅提高。"
@@ -349,7 +359,7 @@ namespace StickMayhem {
             if (host || practice) return Engine.Submit(seat, input);
             return peer.Send(new Message { Kind = "input", Input = input });
         }
-        MatchOptions OptionsNow() { return new MatchOptions { Starter = starter, Map = map, Lives = lives }; }
+        MatchOptions OptionsNow() { return new MatchOptions { Starter = starter, Map = map, Lives = lives, Mode = matchMode }; }
         int ParsePort() { int value; if (!Int32.TryParse(port.Text, out value) || value < 1024 || value > 65535) { lobbyStatus.Text = "端口应为 1024–65535。"; return -1; } return value; }
         void CopyAddress() {
             if (VerificationMode || String.IsNullOrWhiteSpace(address.Text)) return;
@@ -413,7 +423,7 @@ namespace StickMayhem {
                     if (!roomSeats.TryGetValue(m.ConnectionId, out assigned)) {
                         if (roomOptions.Count >= 6) { peer.SendTo(m.ConnectionId, new Message { Kind = "reject", Text = "房间已满，最多 6 人。" }); return; }
                         assigned = roomOptions.Count; roomSeats[m.ConnectionId] = assigned;
-                        roomOptions.Add(new MatchOptions { Starter = m.Options.Starter, Map = hostOptions.Map, Lives = hostOptions.Lives });
+                        roomOptions.Add(new MatchOptions { Starter = m.Options.Starter, Map = hostOptions.Map, Lives = hostOptions.Lives, Mode = hostOptions.Mode });
                     }
                     peer.SendTo(m.ConnectionId, new Message { Kind = "waiting", Seat = assigned, Text = "已分配 " + (assigned + 1) + " 号玩家，等待房主开始。" });
                     lobbyStatus.Text = "房间已建 · " + roomOptions.Count + "/6 人 · 已加入玩家按顺序编号，点击开始对战。"; Refresh(); return;
@@ -486,7 +496,8 @@ namespace StickMayhem {
             hostButton.IsEnabled = !busy || host && !playing && roomOptions.Count >= 2; joinButton.IsEnabled = !busy; leaveButton.IsEnabled = busy || Current != null; resumeButton.IsEnabled = Current != null;
             address.IsReadOnly = busy && host; port.IsEnabled = !busy; copyButton.IsEnabled = address.Text.Length > 0; addressButton.IsEnabled = addresses.Length > 1;
             for (int i = 0; i < Rules.StarterCount; i++) { starters[i].IsEnabled = !busy; starters[i].Background = i == starter ? surface : Brushes.Transparent; starters[i].BorderThickness = new Thickness(i == starter ? 1 : 0); }
-            mapButton.IsEnabled = livesButton.IsEnabled = !busy; mapButton.Content = "地图：" + Rules.Arenas[map].Name; livesButton.Content = "生命：" + lives;
+            mapButton.IsEnabled = livesButton.IsEnabled = modeButton.IsEnabled = !busy; mapButton.Content = "地图：" + Rules.Arenas[map].Name; livesButton.Content = "生命：" + lives;
+            modeButton.Content = "模式：" + (matchMode == 1 ? "跳狙飞人" : "普通");
             status.Text = stopped ? "连接已断开 · 操作停止" : practice ? "本地练习" : playing ? "局域网 · " + (seat + 1) + "号" : busy ? "房间 · " + roomOptions.Count + "/6人" : "协作 · 未连接";
             if (Current == null) return;
             var mine = Current.Players[seat]; var enemy = Current.Players.Where(p => p.Seat != seat && p.Lives > 0).FirstOrDefault() ?? Current.Players[(seat + 1) % Current.Players.Length];
@@ -497,8 +508,8 @@ namespace StickMayhem {
             ownHud.Text = (Current.Players.Length > 2 ? (mine.Seat + 1) + "号 " : "我 ") + mine.Lives + "命 · " + Rules.Weapons[mine.Weapon].Name + " " + ammo + " · 后坐力" + Rules.Weapons[mine.Weapon].Recoil + "级 · 弹 " + mine.Bombs + buff +
                 (minimal ? "" : " · 冲击 " + (int)mine.Impact + "%");
             enemyHud.Text = Current.Players.Length > 2 ? "存活 " + Current.Players.Count(p => p.Lives > 0) + "/" + Current.Players.Length + " · 编号显示在角色头顶" : "对  " + enemy.Lives + " 命 · " + Rules.Weapons[enemy.Weapon].Name + (enemy.Weapon == 6 ? " · " + enemy.Magazine + "发/" + enemy.WeaponTime.ToString("0") + "s" : enemy.Weapon == 8 ? " · " + enemy.WeaponTime.ToString("0") + "s" : "") + (minimal ? "" : " · 冲击 " + (int)enemy.Impact + "%");
-            timerHud.Text = String.Format("{0:00}:{1:00} · {2} · 武 {3}s · 大 {4}s · 补 {5}s", (int)Current.Seconds / 60, (int)Current.Seconds % 60,
-                Rules.Arenas[Current.Map].Name, (int)Math.Ceiling(Current.NextCrate), (int)Math.Ceiling(Current.NextBigCrate), (int)Math.Ceiling(Current.NextPower));
+            timerHud.Text = String.Format("{0:00}:{1:00} · {2}{3} · 武 {4}s · 大 {5}s · 补 {6}s", (int)Current.Seconds / 60, (int)Current.Seconds % 60,
+                Rules.Arenas[Current.Map].Name, Current.Mode == 1 ? " · 跳狙飞人" : "", (int)Math.Ceiling(Current.NextCrate), (int)Math.Ceiling(Current.NextBigCrate), (int)Math.Ceiling(Current.NextPower));
             hint.Text = stopped ? "断线已停止。连接页离开后可重建。" : Current.Finished ? "本局结束 · 联机离开重建 / 点 test 重新练习" :
                 "A/D 移动 · W 跳跃 · 空格跳/飞行 · 左键射击 · 右键炸弹";
             recordText.Text = String.Join("\n", Current.Log.AsEnumerable().Reverse());
@@ -515,13 +526,14 @@ namespace StickMayhem {
                     if (p[0] == "starter" && Int32.TryParse(p[1], out value) && value >= 0 && value < Rules.StarterCount) starter = value;
                     if (p[0] == "map" && Int32.TryParse(p[1], out value) && value >= 0 && value < Rules.Arenas.Length) map = value;
                     if (p[0] == "lives" && Int32.TryParse(p[1], out value) && (value == 3 || value == 5 || value == 7 || value == 10)) lives = value;
+                    if (p[0] == "matchmode" && Int32.TryParse(p[1], out value) && value >= 0 && value <= 1) matchMode = value;
                 }
             } catch (IOException) { }
         }
         void SavePreferences() {
             if (VerificationMode) return;
             try { File.WriteAllText(Path.Combine(root, "preferences.ini"), "theme=" + theme + "\nappearance=" + appearance + "\nmode=" +
-                (minimal ? "minimal" : "normal") + "\nstarter=" + starter + "\nmap=" + map + "\nlives=" + lives + "\n"); }
+                (minimal ? "minimal" : "normal") + "\nstarter=" + starter + "\nmap=" + map + "\nlives=" + lives + "\nmatchmode=" + matchMode + "\n"); }
             catch (Exception) { if (lobbyStatus != null) lobbyStatus.Text = "设置已生效，当前目录无法保存偏好。"; }
         }
         internal void SetPreview(MatchState state) {
