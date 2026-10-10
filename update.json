@@ -1,1 +1,1 @@
-{"Version":"1.6.2","PackageUrl":"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip","Sha256":"cc07503b995fd4db645b61136bb012b1185ed2c3dbdf639cbc9634cfea579123","Notes":"新增更新日志与 GitHub 更新，支持 Git Credential Manager 私有仓库访问、SHA-256 校验和失败恢复。"}
+{"Version":"1.6.3","PackageUrl":"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip","Sha256":"5a7944216c5c1ab4850a8236f22399f42dd4564e88112eba498f02730451c2fa","Notes":"突击步枪与冲锋枪改为三十发后切回手枪；地图道具限时闪烁消失；新增枪械后坐力等级。"}

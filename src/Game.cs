@@ -9,13 +9,14 @@ namespace StickMayhem {
     public sealed class Weapon {
         public string Name, Pickup;
         public double Interval, MinInterval, RampDuration, Speed, Push, ImpactPush, Spread, Reload;
+        public int Recoil;
         public int Pellets, Ammo, Magazine;
         public bool Rocket, Automatic, Explosive, Melee, Energy, DirectKill, BoltAction, SlowTarget;
     }
     public sealed class Platform { public double X, Y, Width; }
     public sealed class Arena { public string Name; public Platform[] Platforms; public double[] Spawns; }
     public static class Rules {
-        public const string Version = "StickMayhem/1.6.2";
+        public const string Version = "StickMayhem/1.6.3";
         public const double Dt = 1.0 / 60, Width = 1000, Height = 600, Gravity = 1450;
         public const int StarterCount = 3;
         public static bool LargeDropWeapon(int weapon) { return weapon == 6 || weapon == 8 || weapon == 11 || weapon == 12; }
@@ -23,17 +24,17 @@ namespace StickMayhem {
             new Weapon { Name = "左轮", Interval = .52, Speed = 1420, Push = 420, Pellets = 1, Spread = 0, Magazine = 6, Ammo = 18, Reload = 3, Automatic = true },
             new Weapon { Name = "USP", Interval = .25, Speed = 1280, Push = 185, Pellets = 1, Spread = .018, Magazine = 12, Ammo = 36, Reload = 2, Automatic = true },
             new Weapon { Name = "格洛克", Interval = .11, Speed = 1180, Push = 92, Pellets = 1, Spread = .05, Magazine = 20, Ammo = 60, Reload = 1.5, Automatic = true },
-            new Weapon { Name = "霰弹枪", Interval = .8, Speed = 900, Push = 180, Pellets = 6, Spread = .14, Magazine = 8, Ammo = 8 },
-            new Weapon { Name = "狙击枪", Interval = 1.1, Speed = 2300, Push = 490, Pellets = 1, Spread = 0, Magazine = 6, Ammo = 6 },
-            new Weapon { Name = "火箭筒", Interval = 1.2, Speed = 610, Push = 550, Pellets = 1, Spread = 0, Magazine = 5, Ammo = 5, Rocket = true }
-            ,new Weapon { Name = "加特林", Pickup = "牢张的愤怒", Interval = .035, Speed = 1500, Push = 220, Pellets = 1, Spread = .065, Magazine = 60, Ammo = 60, Automatic = true }
-            ,new Weapon { Name = "榴弹发射器", Interval = .72, Speed = 700, Push = 760, Pellets = 1, Spread = .025, Magazine = 12, Ammo = 12, Explosive = true }
+            new Weapon { Name = "霰弹枪", Interval = .8, Speed = 900, Push = 180, Pellets = 6, Spread = .14, Magazine = 8, Ammo = 8, Recoil = 2 },
+            new Weapon { Name = "狙击枪", Interval = 1.1, Speed = 2300, Push = 490, Pellets = 1, Spread = 0, Magazine = 6, Ammo = 6, Recoil = 3 },
+            new Weapon { Name = "火箭筒", Interval = 1.2, Speed = 610, Push = 550, Pellets = 1, Spread = 0, Magazine = 5, Ammo = 5, Rocket = true, Recoil = 3 }
+            ,new Weapon { Name = "加特林", Pickup = "牢张的愤怒", Interval = .035, Speed = 1500, Push = 220, Pellets = 1, Spread = .065, Magazine = 60, Ammo = 60, Automatic = true, Recoil = 2 }
+            ,new Weapon { Name = "榴弹发射器", Interval = .72, Speed = 700, Push = 760, Pellets = 1, Spread = .025, Magazine = 12, Ammo = 12, Explosive = true, Recoil = 1 }
             ,new Weapon { Name = "坐牢之剑", Interval = .48, Magazine = 1, Ammo = 1, Melee = true }
-            ,new Weapon { Name = "突击步枪", Interval = .13, Speed = 1360, Push = 395, Pellets = 1, Spread = .025, Magazine = 30, Ammo = 60, Reload = 1.8, Automatic = true }
-            ,new Weapon { Name = "冲锋枪", Interval = .095, Speed = 1160, Push = 185, Pellets = 1, Spread = .065, Magazine = 30, Ammo = 60, Reload = 1.5, Automatic = true }
-            ,new Weapon { Name = "专注冲锋枪", Pickup = "专注冲锋枪", Interval = .28, MinInterval = .075, RampDuration = 1.2, Speed = 1280, Push = 150, Pellets = 1, Spread = .055, Magazine = 45, Ammo = 45, Automatic = true, Energy = true }
-            ,new Weapon { Name = "克莱博", Pickup = "克莱博", Interval = .55, Speed = 2600, Push = 0, Pellets = 1, Spread = 0, Magazine = 5, Ammo = 5, Reload = 1, BoltAction = true, DirectKill = true }
-            ,new Weapon { Name = "电能冲锋枪", Pickup = "电能冲锋枪", Interval = .12, Speed = 1280, Push = 92, ImpactPush = 185, Pellets = 1, Spread = .05, Magazine = 30, Ammo = 60, Reload = 1.5, Automatic = true, Energy = true, SlowTarget = true }
+            ,new Weapon { Name = "突击步枪", Interval = .13, Speed = 1360, Push = 395, Pellets = 1, Spread = .025, Magazine = 30, Ammo = 30, Automatic = true, Recoil = 2 }
+            ,new Weapon { Name = "冲锋枪", Interval = .095, Speed = 1160, Push = 185, Pellets = 1, Spread = .065, Magazine = 30, Ammo = 30, Automatic = true, Recoil = 1 }
+            ,new Weapon { Name = "专注冲锋枪", Pickup = "专注冲锋枪", Interval = .28, MinInterval = .075, RampDuration = 1.2, Speed = 1280, Push = 150, Pellets = 1, Spread = .055, Magazine = 45, Ammo = 45, Automatic = true, Energy = true, Recoil = 1 }
+            ,new Weapon { Name = "克莱博", Pickup = "克莱博", Interval = .55, Speed = 2600, Push = 0, Pellets = 1, Spread = 0, Magazine = 5, Ammo = 5, Reload = 1, BoltAction = true, DirectKill = true, Recoil = 4 }
+            ,new Weapon { Name = "电能冲锋枪", Pickup = "电能冲锋枪", Interval = .12, Speed = 1280, Push = 92, ImpactPush = 185, Pellets = 1, Spread = .05, Magazine = 30, Ammo = 60, Reload = 1.5, Automatic = true, Energy = true, SlowTarget = true, Recoil = 0 }
         };
         public static readonly Arena[] Arenas = {
             new Arena { Name = "分层平台", Spawns = new[] { 150.0, 850, 290, 710, 440, 560 }, Platforms = new[] {
@@ -218,6 +219,11 @@ namespace StickMayhem {
                 Vy = dy * weapon.Speed, Fuse = 1.25, Launched = true });
             double shotInterval = weapon.MinInterval > 0 && weapon.RampDuration > 0 ? weapon.Interval - (weapon.Interval - weapon.MinInterval) * Rules.Clamp(p.FireRamp / weapon.RampDuration, 0, 1) : weapon.Interval;
             p.Cooldown = shotInterval * (p.SpeedTime > 0 ? .5 : 1);
+            if (weapon.Recoil > 0 && !weapon.DirectKill) {
+                double kick = weapon.Recoil * 20;
+                p.Vx = Rules.Clamp(p.Vx - dx * kick, -1050, 1050); p.Vy = Rules.Clamp(p.Vy - dy * kick, -900, 950);
+                p.Grounded = false;
+            }
             if (weapon.DirectKill) {
                 p.Vx = Rules.Clamp(p.Vx - dx * 790, -1050, 1050); p.Vy = Rules.Clamp(p.Vy - dy * 790, -900, 950);
                 p.Grounded = false; p.HitStun = .16;
@@ -401,7 +407,7 @@ namespace StickMayhem {
                     else if (item.Kind == 2) { picker.InvisibleTime = 5; Popup(picker, "隐身装置 · 5秒"); }
                     else { picker.SpeedTime = 5; picker.Popup = "火力全开"; picker.PopupTime = 5; }
                     State.Powerups.Remove(item); Log("成员 " + (picker.Seat + 1) + " 获得 " + (item.Kind == 0 ? "护盾" : item.Kind == 1 ? "火箭飞行器" : item.Kind == 2 ? "隐身装置" : "火力全开"));
-                } else if (item.Y > 720 || item.Age > 18) State.Powerups.Remove(item);
+                } else if (item.Y > 720 || item.Age >= 7) State.Powerups.Remove(item);
             }
             foreach (var burst in State.Bursts.ToArray()) { burst.Time -= Rules.Dt; if (burst.Time <= 0) State.Bursts.Remove(burst); }
             foreach (var p in State.Players) {

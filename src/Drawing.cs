@@ -39,6 +39,9 @@ namespace StickMayhem {
             };
             LostMouseCapture += delegate { var action = Shooting; if (action != null) action(false); };
         }
+        public static bool PowerupVisible(double age) {
+            return age < 5 || age < 7 && ((int)((age - 5) * 10) % 2 == 0);
+        }
         public Rect StageRect {
             get {
                 double scale = Math.Max(.001, Math.Min(Math.Max(1, ActualWidth - 8) / 1000, Math.Max(1, ActualHeight - 8) / 600));
@@ -103,6 +106,7 @@ namespace StickMayhem {
                 }
             }
             foreach (var item in State.Powerups) {
+                if (!PowerupVisible(item.Age)) continue;
                 double size = Math.Max(22, 8 / scale); Brush powerInk = item.Kind == 3 ? new SolidColorBrush(Color.FromRgb(35, 151, 255)) : item.Kind == 0 ? Accent : item.Kind == 1 ? Muted : Ink;
                 var pp = new Pen(powerInk, 1.2 / scale);
                 dc.DrawEllipse(Surface, pp, new Point(item.X, item.Y), size / 2, size / 2);

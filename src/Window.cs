@@ -187,7 +187,7 @@ namespace StickMayhem {
         }
         void BuildHelp() {
             help = new Grid(); body.Children.Add(help);
-            var text = T("火柴人平台竞技\n\n用枪和爆炸物把对手击退出场外，掉落扣一命，最后存活者获胜。\n\n鼠标瞄准；左键射击/挥剑，右键炸弹。A / D 移动，W / ↑ 跳跃；空格也能跳跃，获得火箭飞行器后长按空格飞行。S / ↓ 穿过平台。\n\n开局只选手枪，均为无限备弹但需要换弹：左轮 6 发/3 秒、USP 12 发/2 秒、格洛克 20 发/1.5 秒。三把手枪都可按住左键持续发射，按各自射速间隔出弹。换弹时角色头顶圆环显示进度。\n\n普通武器箱约每 7–10 秒掉落霰弹枪、狙击枪、火箭筒、榴弹发射器、突击步枪、普通冲锋枪或电能冲锋枪。普通电能冲锋枪为 30 发/一个备用弹匣，发蓝色子弹，击退等于格洛克、冲击值增幅等于普通冲锋枪，命中使目标移速降低 50% 并持续 2 秒。火箭筒爆炸范围和击退增强并有火焰冲击特效。\n\n大空投箱约每 28–36 秒掉落加特林“牢张的愤怒”、近战“坐牢之剑”、专注冲锋枪或克莱博。加特林和剑限时 15 秒；专注冲锋枪 45 发蓝色子弹，按住开火逐渐加速；克莱博 5 发、每发后枪机装填 1 秒，命中直接碎裂击杀并以后坐力震飞射手，头顶显示剩余子弹数。四把都不能被其他武器箱替换；弹药打空后切回开局手枪。\n\n增益补给每 8–10 秒随机刷新护盾、火箭飞行器、隐身装置或速度道具。护盾持续 6 秒；火箭飞行器没有持有时限，但燃料为 3 秒；隐身持续 5 秒，自己半透明，对手视角消失；速度持续 5 秒，移动速度和射速翻倍，头顶白色“火力全开”文字及倒计时闪烁。\n\n每条命有 3 枚炸弹，爆炸可以把自己轰飞。命中累积冲击值，越高越容易被打飞；重生清零并获得 1.8 秒保护。最后一条命复活显示“背水一战”，随后淡出。\n\n最多 6 人局域网联机，房主为 1 号，加入者依次编号 2–6；至少 2 人加入后房主点“开始对战”。六张地图各有六个出生点，地图与生命数由房主决定，默认端口 42673。房主统一计算物理、命中、换弹、补给、击退与胜负。断线后停止，离开再重建。\n\n顶栏 test 与电脑练习。切页、失去焦点和最小化会释放输入，对局继续。设置保存在 preferences.ini，对局不保存。", 10, true);
+            var text = T("火柴人平台竞技\n\n用枪和爆炸物把对手击退出场外，掉落扣一命，最后存活者获胜。\n\n鼠标瞄准；左键射击/挥剑，右键炸弹。A / D 移动，W / ↑ 跳跃；空格也能跳跃，获得火箭飞行器后长按空格飞行。S / ↓ 穿过平台。\n\n开局只选手枪，均为无限备弹但需要换弹：左轮 6 发/3 秒、USP 12 发/2 秒、格洛克 20 发/1.5 秒。三把手枪都可按住左键持续发射，按各自射速间隔出弹。换弹时角色头顶圆环显示进度。\n\n普通武器箱约每 7–10 秒掉落霰弹枪、狙击枪、火箭筒、榴弹发射器、突击步枪、普通冲锋枪或电能冲锋枪。普通电能冲锋枪为 30 发/一个备用弹匣，发蓝色子弹，击退等于格洛克、冲击值增幅等于普通冲锋枪，命中使目标移速降低 50% 并持续 2 秒。突击步枪和普通冲锋枪各 30 发总量，打空切回开局手枪、不再换弹；火箭筒爆炸范围和击退增强并有火焰冲击特效。\n\n除开局手枪外，枪械后坐力等级：霰弹枪2、狙击枪3、火箭筒3、牢张的愤怒2、榴弹发射器1、突击步枪2、普通/专注冲锋枪1、克莱博4、电能冲锋枪0。HUD 显示等级。\n\n大空投箱约每 28–36 秒掉落加特林“牢张的愤怒”、近战“坐牢之剑”、专注冲锋枪或克莱博。加特林和剑限时 15 秒；专注冲锋枪 45 发蓝色子弹，按住开火逐渐加速；克莱博 5 发、每发后枪机装填 1 秒，命中直接碎裂击杀并以后坐力震飞射手，头顶显示剩余子弹数。四把都不能被其他武器箱替换；弹药打空后切回开局手枪。\n\n增益补给每 8–10 秒随机刷新护盾、火箭飞行器、隐身装置或速度道具。出现 5 秒未拾取会闪烁 2 秒后消失。护盾持续 6 秒；火箭飞行器没有持有时限，但燃料为 3 秒；隐身持续 5 秒，自己半透明，对手视角消失；速度持续 5 秒，移动速度和射速翻倍，头顶白色“火力全开”文字及倒计时闪烁。\n\n每条命有 3 枚炸弹，爆炸可以把自己轰飞。命中累积冲击值，越高越容易被打飞；重生清零并获得 1.8 秒保护。最后一条命复活显示“背水一战”，随后淡出。\n\n最多 6 人局域网联机，房主为 1 号，加入者依次编号 2–6；至少 2 人加入后房主点“开始对战”。六张地图各有六个出生点，地图与生命数由房主决定，默认端口 42673。房主统一计算物理、命中、换弹、补给、击退与胜负。断线后停止，离开再重建。\n\n顶栏 test 与电脑练习。切页、失去焦点和最小化会释放输入，对局继续。设置保存在 preferences.ini，对局不保存。", 10, true);
             text.TextWrapping = TextWrapping.Wrap; text.VerticalAlignment = VerticalAlignment.Top;
             help.Children.Add(new ScrollViewer { Content = text, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         }
@@ -202,6 +202,11 @@ namespace StickMayhem {
             Put(header, T("更新日志 · v" + UpdateService.CurrentVersion, 11, false), 0, 0);
             var version = Btn("版本更新", delegate { ShowPage("updater"); }, false); version.Height = 22; version.FontSize = 9; Put(header, version, 0, 1); Put(changelog, header, 0, 0);
             var items = new StackPanel();
+            items.Children.Add(Note("v1.6.3", new[] {
+                "突击步枪、冲锋枪改为总计 30 发，打完直接切回开局手枪，不再换弹。",
+                "地图道具出现 5 秒未拾取后闪烁 2 秒，随后消失。",
+                "非手枪枪械新增 0–5 级物理后坐力，武器 HUD 显示当前等级。"
+            }, true));
             items.Children.Add(Note("v1.6.2", new[] {
                 "更新器复用本机 GitHub Desktop / Git Credential Manager 的登录凭据，支持私有仓库下载。",
                 "凭据仅用于当前 HTTPS 请求，不写入游戏文件或错误信息；公开仓库仍可匿名更新。"
@@ -485,7 +490,7 @@ namespace StickMayhem {
             string buff = mine.ShieldTime > 0 ? " · 盾 " + mine.ShieldTime.ToString("0.0") + "s" : mine.JetOwned ? " · 火箭燃料 " + mine.JetFuel.ToString("0.0") + "s" : mine.InvisibleTime > 0 ? " · 隐身 " + mine.InvisibleTime.ToString("0.0") + "s" : mine.SpeedTime > 0 ? " · 速×2 " + mine.SpeedTime.ToString("0.0") + "s" : "";
             if (mine.SlowTime > 0) buff += " · 减速 " + mine.SlowTime.ToString("0.0") + "s";
             if (mine.Weapon == 6 || mine.Weapon == 8) buff += " · 剩余 " + mine.WeaponTime.ToString("0.0") + "s";
-            ownHud.Text = (Current.Players.Length > 2 ? (mine.Seat + 1) + "号 " : "我 ") + mine.Lives + "命 · " + Rules.Weapons[mine.Weapon].Name + " " + ammo + " · 弹 " + mine.Bombs + buff +
+            ownHud.Text = (Current.Players.Length > 2 ? (mine.Seat + 1) + "号 " : "我 ") + mine.Lives + "命 · " + Rules.Weapons[mine.Weapon].Name + " " + ammo + " · 后坐力" + Rules.Weapons[mine.Weapon].Recoil + "级 · 弹 " + mine.Bombs + buff +
                 (minimal ? "" : " · 冲击 " + (int)mine.Impact + "%");
             enemyHud.Text = Current.Players.Length > 2 ? "存活 " + Current.Players.Count(p => p.Lives > 0) + "/" + Current.Players.Length + " · 编号显示在角色头顶" : "对  " + enemy.Lives + " 命 · " + Rules.Weapons[enemy.Weapon].Name + (enemy.Weapon == 6 ? " · " + enemy.Magazine + "发/" + enemy.WeaponTime.ToString("0") + "s" : enemy.Weapon == 8 ? " · " + enemy.WeaponTime.ToString("0") + "s" : "") + (minimal ? "" : " · 冲击 " + (int)enemy.Impact + "%");
             timerHud.Text = String.Format("{0:00}:{1:00} · {2} · 武 {3}s · 大 {4}s · 补 {5}s", (int)Current.Seconds / 60, (int)Current.Seconds % 60,

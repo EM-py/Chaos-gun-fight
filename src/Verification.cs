@@ -38,10 +38,12 @@ namespace StickMayhem {
             Check(Rules.Weapons[0].Automatic && Rules.Weapons[1].Automatic && Rules.Weapons[0].Interval > Rules.Weapons[1].Interval && Rules.Weapons[1].Interval > Rules.Weapons[2].Interval,
                 "revolver and USP repeat while held at their slower configured fire rates");
             Check(Rules.Weapons[0].Push == 420, "revolver knockback damage increased");
-            Check(Rules.Weapons[9].Name == "突击步枪" && Rules.Weapons[9].Magazine == 30 && Rules.Weapons[9].Ammo == 60 && Rules.Weapons[9].Push < Rules.Weapons[0].Push && Rules.Weapons[9].Push > Rules.Weapons[2].Push && Rules.Weapons[9].Interval > Rules.Weapons[2].Interval && Rules.Weapons[9].Automatic,
-                "assault rifle has one spare 30-round magazine, slightly lower impact and fire rate than requested comparators");
-            Check(Rules.Weapons[10].Name == "冲锋枪" && Rules.Weapons[10].Push == Rules.Weapons[1].Push && Rules.Weapons[10].Interval < Rules.Weapons[2].Interval && Rules.Weapons[10].Automatic,
-                "submachine gun matches USP impact and fires slightly faster than Glock");
+            Check(Rules.Weapons[9].Name == "突击步枪" && Rules.Weapons[9].Magazine == 30 && Rules.Weapons[9].Ammo == 30 && Rules.Weapons[9].Reload == 0 && Rules.Weapons[9].Push < Rules.Weapons[0].Push && Rules.Weapons[9].Push > Rules.Weapons[2].Push && Rules.Weapons[9].Interval > Rules.Weapons[2].Interval && Rules.Weapons[9].Automatic,
+                "assault rifle has thirty total rounds and returns to starter without reloading");
+            Check(Rules.Weapons[10].Name == "冲锋枪" && Rules.Weapons[10].Ammo == 30 && Rules.Weapons[10].Reload == 0 && Rules.Weapons[10].Push == Rules.Weapons[1].Push && Rules.Weapons[10].Interval < Rules.Weapons[2].Interval && Rules.Weapons[10].Automatic,
+                "submachine gun has thirty total rounds, matches USP impact and fires slightly faster than Glock");
+            Check(Rules.Weapons.Select(w => w.Recoil).SequenceEqual(new[] { 0, 0, 0, 2, 3, 3, 2, 1, 0, 2, 1, 1, 4, 0 }),
+                "weapon recoil levels match requested scale; starter pistols, sword and electric SMG have no recoil");
             Check(Rules.Weapons[11].Name == "专注冲锋枪" && Rules.Weapons[11].Energy && Rules.Weapons[11].Magazine == 45 && Rules.Weapons[11].Interval > Rules.Weapons[11].MinInterval && Rules.Weapons[11].Automatic,
                 "Focus SMG keeps its blue 45-round magazine and increasing rate of fire");
             Check(Rules.Weapons[12].Name == "克莱博" && Rules.Weapons[12].DirectKill && Rules.Weapons[12].BoltAction && Rules.Weapons[12].Magazine == 5 && Rules.Weapons[12].Reload == 1,
@@ -49,15 +51,19 @@ namespace StickMayhem {
             Check(Rules.Weapons[13].Name == "电能冲锋枪" && Rules.Weapons[13].Energy && Rules.Weapons[13].SlowTarget && Rules.Weapons[13].Magazine == 30 && Rules.Weapons[13].Ammo == 60 && Rules.Weapons[13].Push == Rules.Weapons[2].Push && Rules.Weapons[13].ImpactPush == Rules.Weapons[10].Push,
                 "ordinary-drop electric SMG uses blue bullets, Glock knockback, SMG impact gain and two magazines");
             foreach (int index in new[] { 9, 10 }) {
-                m = New(index, 0); p = m.State.Players[0]; p.Magazine = 0; p.Reserve = 30;
+                m = New(index, 0); p = m.State.Players[0]; p.X = 500; p.Magazine = Rules.Weapons[index].Magazine; p.Reserve = 0;
+                for (int shotTick = 0; shotTick < 600 && p.Weapon == index; shotTick++) {
+                    p.X = 500; p.Y = 499; p.Vx = p.Vy = 0; p.Grounded = true;
+                    m.Submit(0, Frame(m, 0, 0, 0, true, p.X + 100, p.Y - 25)); m.Step();
+                }
+                Check(p.Weapon == p.Starter && p.Magazine == Rules.Weapons[p.Starter].Magazine && p.Reserve == -1 && p.ReloadTime == 0,
+                    Rules.Weapons[index].Name + " spends its only thirty-round supply then switches to starter pistol");
+            }
+            foreach (int index in Enumerable.Range(Rules.StarterCount, Rules.Weapons.Length - Rules.StarterCount)) {
+                m = New(index, 0); p = m.State.Players[0]; p.X = 500; p.Y = 499; p.Vx = p.Vy = 0; p.Grounded = true;
                 m.Submit(0, Frame(m, 0, 0, 0, true, p.X + 100, p.Y - 25)); m.Step();
-                Check(p.ReloadTime > 0, Rules.Weapons[index].Name + " starts reloading the one spare magazine");
-                m.Submit(0, Frame(m, 0, 0, 0, false, p.X + 100, p.Y - 25));
-                for (int reloadTick = 0; reloadTick < 125; reloadTick++) m.Step();
-                Check(p.Magazine == 30 && p.Reserve == 0, Rules.Weapons[index].Name + " reloads exactly one 30-round spare magazine");
-                p.Magazine = 1; p.Cooldown = 0;
-                m.Submit(0, Frame(m, 0, 0, 0, true, p.X + 100, p.Y - 25)); m.Step();
-                Check(p.Weapon == p.Starter && p.Reserve == -1, Rules.Weapons[index].Name + " returns to the chosen starter after both magazines are spent");
+                Check(Rules.Weapons[index].Recoil > 0 ? p.Vx < 0 : Math.Abs(p.Vx) < .01,
+                    Rules.Weapons[index].Name + " applies its configured firing recoil");
             }
             m = New(11, 0); p = m.State.Players[0];
             m.Submit(0, Frame(m, 0, 0, 0, true, p.X + 400, p.Y - 25)); m.Step(); double slowStart = p.Cooldown;
@@ -197,7 +203,7 @@ namespace StickMayhem {
             }
             for (int pistol = 0; pistol < Rules.StarterCount; pistol++) {
                 m = New(0, 0); p = m.State.Players[1]; enemy = m.State.Players[0]; p.Starter = pistol; p.Weapon = pistol;
-                p.Magazine = Rules.Weapons[pistol].Magazine; p.Reserve = -1; enemy.Invulnerable = 2; m.State.NextCrate = 1000;
+                p.Magazine = Rules.Weapons[pistol].Magazine; p.Reserve = -1; enemy.Invulnerable = 2; m.State.NextCrate = m.State.NextBigCrate = m.State.NextPower = 1000;
                 var bot = new Bot(700 + pistol);
                 for (int t = 0; t < 1500; t++) { enemy.Invulnerable = 2; m.Submit(1, bot.Think(m.State, 1)); m.Step(); }
                 while (p.ReloadTime > 0) { enemy.Invulnerable = 2; m.Submit(1, bot.Think(m.State, 1)); m.Step(); }
@@ -235,6 +241,10 @@ namespace StickMayhem {
             }
             m = New(0, 0); m.State.NextPower = 0; m.Step();
             Check(m.State.Powerups.Count == 1 && m.State.NextPower >= 8 && m.State.NextPower <= 10 && m.State.Powerups[0].Kind >= 0 && m.State.Powerups[0].Kind <= 3, "random shield, flight device, invisibility or speed every eight to ten seconds");
+            Check(ArenaView.PowerupVisible(4.99) && ArenaView.PowerupVisible(5.05) && !ArenaView.PowerupVisible(5.15) && ArenaView.PowerupVisible(5.25) && !ArenaView.PowerupVisible(7),
+                "powerups blink only during the two seconds after five seconds on the map");
+            m = New(0, 0); m.State.Powerups.Add(new Powerup { Id = 600, Kind = 0, X = 500, Y = 300, Age = 6.99, Landed = true }); m.Step();
+            Check(m.State.Powerups.Count == 0, "uncollected powerup disappears after its two-second warning blink");
             m = New(0, 0); p = m.State.Players[0]; p.Lives = 2; p.Weapon = 6; p.Magazine = 60; p.WeaponTime = Rules.Dt; m.Step();
             Check(p.Lives == 1 && p.Respawn > 0 && m.State.Log.Last().Contains("倒计时结束") && m.State.Shatters.Count == 1, "Gatling 15-second expiry costs a life with shatter animation");
             m = New(0, 0); p = m.State.Players[0]; p.Lives = 2; p.Weapon = 6; p.Magazine = 1; p.Reserve = 0; p.WeaponTime = 15;
@@ -415,10 +425,10 @@ namespace StickMayhem {
             Render(w, Path.Combine(folder, "final-stand.png"));
             var offscreen = Fixture(); offscreen.Players[0].X = 1080; offscreen.Players[0].Y = 700; offscreen.Players[1].X = -70; offscreen.Players[1].Y = 250;
             w.SetPreview(offscreen); w.Field.State = offscreen; w.Field.Seat = 0; Render(w, Path.Combine(folder, "offscreen-arrows.png"));
-            Check(UpdateService.CurrentVersion == "1.6.2", "application release version");
-            Check(UpdateService.IsNewer("1.6.2", "1.6.1") && !UpdateService.IsNewer("1.6.1", "1.6.2"), "semantic update ordering");
-            var testManifest = UpdateService.ParseManifest("{\"Version\":\"1.6.2\",\"PackageUrl\":\"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
-            Check(testManifest.Version == "1.6.2", "trusted update manifest parsing");
+            Check(UpdateService.CurrentVersion == "1.6.3", "application release version");
+            Check(UpdateService.IsNewer("1.6.3", "1.6.2") && !UpdateService.IsNewer("1.6.2", "1.6.3"), "semantic update ordering");
+            var testManifest = UpdateService.ParseManifest("{\"Version\":\"1.6.3\",\"PackageUrl\":\"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
+            Check(testManifest.Version == "1.6.3", "trusted update manifest parsing");
             Check(w.UpdatePagesReady, "changelog and updater pages constructed");
             w.ShowPage("changelog"); Render(w, Path.Combine(folder, "changelog.png"));
             w.ShowPage("updater"); Render(w, Path.Combine(folder, "version-update.png"));
