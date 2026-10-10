@@ -214,13 +214,17 @@ namespace StickMayhem {
                     bool speedPopup = p.Popup == "火力全开" && p.SpeedTime > 0;
                     double opacityPopup = speedPopup ? (State.Tick % 18 < 12 ? Rules.Clamp(p.SpeedTime / .65, .3, 1) : .25) : Match.PopupOpacity(p);
                     dc.PushOpacity(opacityPopup);
-                    Text(dc, p.Popup, Rules.Clamp(x, 95, 905), Math.Max(4, y - (p.Weapon == 6 || p.Weapon == 8 || p.Weapon == 11 || p.Weapon == 12 ? 100 : 82) - Match.PopupRise(p)),
-                        (Minimal ? 10 : 12) / scale, speedPopup ? new SolidColorBrush(Color.FromRgb(35, 151, 255)) : Ink, true); dc.Pop();
+                    string popupText = speedPopup ? p.Popup + "  " + Math.Ceiling(p.SpeedTime).ToString("0") + "s" : p.Weapon == 12 ? p.Popup + " · " + p.Magazine + "发" : p.Popup;
+                    double popupY = Math.Max(4, y - (p.Weapon == 6 || p.Weapon == 8 || p.Weapon == 11 || p.Weapon == 12 ? 100 : 82) - Match.PopupRise(p));
+                    if (speedPopup) Text(dc, popupText, Rules.Clamp(x + 1, 95, 905), popupY + 1, (Minimal ? 10 : 12) / scale, Brushes.Black, true);
+                    Text(dc, popupText, Rules.Clamp(x, 95, 905), popupY, (Minimal ? 10 : 12) / scale, speedPopup ? Brushes.White : Ink, true); dc.Pop();
                 }
                 if ((p.Weapon == 6 || p.Weapon == 8) && p.WeaponTime > 0 && p.PopupTime <= 0) {
                     string weaponLabel = p.Weapon == 6 ? "牢张的愤怒" : "坐牢之剑";
                     Text(dc, weaponLabel + " · " + Math.Ceiling(p.WeaponTime).ToString("0") + "s", Rules.Clamp(x, 95, 905), Math.Max(4, y - 98), (Minimal ? 8 : 10) / scale, Ink, true);
                 }
+                if (p.Weapon == 12 && p.PopupTime <= 0)
+                    Text(dc, "克莱博 · 剩余 " + p.Magazine + " 发", Rules.Clamp(x, 95, 905), Math.Max(4, y - 98), (Minimal ? 8 : 10) / scale, Ink, true);
                 if (opacity < 1) dc.Pop();
             }
             foreach (var shatter in State.Shatters) DrawShatter(dc, shatter, scale);

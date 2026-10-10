@@ -8,20 +8,20 @@ using System.Web.Script.Serialization;
 namespace StickMayhem {
     public sealed class Weapon {
         public string Name, Pickup;
-        public double Interval, MinInterval, RampDuration, Speed, Push, Spread, Reload;
+        public double Interval, MinInterval, RampDuration, Speed, Push, ImpactPush, Spread, Reload;
         public int Pellets, Ammo, Magazine;
-        public bool Rocket, Automatic, Explosive, Melee, Energy, DirectKill, BoltAction;
+        public bool Rocket, Automatic, Explosive, Melee, Energy, DirectKill, BoltAction, SlowTarget;
     }
     public sealed class Platform { public double X, Y, Width; }
     public sealed class Arena { public string Name; public Platform[] Platforms; public double[] Spawns; }
     public static class Rules {
-        public const string Version = "StickMayhem/1.5.0";
+        public const string Version = "StickMayhem/1.6.0";
         public const double Dt = 1.0 / 60, Width = 1000, Height = 600, Gravity = 1450;
         public const int StarterCount = 3;
         public static bool LargeDropWeapon(int weapon) { return weapon == 6 || weapon == 8 || weapon == 11 || weapon == 12; }
         public static readonly Weapon[] Weapons = {
-            new Weapon { Name = "左轮", Interval = .52, Speed = 1420, Push = 420, Pellets = 1, Spread = 0, Magazine = 6, Ammo = 18, Reload = 3 },
-            new Weapon { Name = "USP", Interval = .25, Speed = 1280, Push = 185, Pellets = 1, Spread = .018, Magazine = 12, Ammo = 36, Reload = 2 },
+            new Weapon { Name = "左轮", Interval = .52, Speed = 1420, Push = 420, Pellets = 1, Spread = 0, Magazine = 6, Ammo = 18, Reload = 3, Automatic = true },
+            new Weapon { Name = "USP", Interval = .25, Speed = 1280, Push = 185, Pellets = 1, Spread = .018, Magazine = 12, Ammo = 36, Reload = 2, Automatic = true },
             new Weapon { Name = "格洛克", Interval = .11, Speed = 1180, Push = 92, Pellets = 1, Spread = .05, Magazine = 20, Ammo = 60, Reload = 1.5, Automatic = true },
             new Weapon { Name = "霰弹枪", Interval = .8, Speed = 900, Push = 180, Pellets = 6, Spread = .14, Magazine = 8, Ammo = 8 },
             new Weapon { Name = "狙击枪", Interval = 1.1, Speed = 2300, Push = 490, Pellets = 1, Spread = 0, Magazine = 6, Ammo = 6 },
@@ -31,8 +31,9 @@ namespace StickMayhem {
             ,new Weapon { Name = "坐牢之剑", Interval = .48, Magazine = 1, Ammo = 1, Melee = true }
             ,new Weapon { Name = "突击步枪", Interval = .13, Speed = 1360, Push = 395, Pellets = 1, Spread = .025, Magazine = 30, Ammo = 60, Reload = 1.8, Automatic = true }
             ,new Weapon { Name = "冲锋枪", Interval = .095, Speed = 1160, Push = 185, Pellets = 1, Spread = .065, Magazine = 30, Ammo = 60, Reload = 1.5, Automatic = true }
-            ,new Weapon { Name = "电能冲锋枪", Pickup = "电能冲锋枪", Interval = .28, MinInterval = .075, RampDuration = 1.2, Speed = 1280, Push = 150, Pellets = 1, Spread = .055, Magazine = 45, Ammo = 45, Automatic = true, Energy = true }
+            ,new Weapon { Name = "专注冲锋枪", Pickup = "专注冲锋枪", Interval = .28, MinInterval = .075, RampDuration = 1.2, Speed = 1280, Push = 150, Pellets = 1, Spread = .055, Magazine = 45, Ammo = 45, Automatic = true, Energy = true }
             ,new Weapon { Name = "克莱博", Pickup = "克莱博", Interval = .55, Speed = 2600, Push = 0, Pellets = 1, Spread = 0, Magazine = 5, Ammo = 5, Reload = 1, BoltAction = true, DirectKill = true }
+            ,new Weapon { Name = "电能冲锋枪", Pickup = "电能冲锋枪", Interval = .12, Speed = 1280, Push = 92, ImpactPush = 185, Pellets = 1, Spread = .05, Magazine = 30, Ammo = 60, Reload = 1.5, Automatic = true, Energy = true, SlowTarget = true }
         };
         public static readonly Arena[] Arenas = {
             new Arena { Name = "分层平台", Spawns = new[] { 150.0, 850, 290, 710, 440, 560 }, Platforms = new[] {
@@ -68,15 +69,15 @@ namespace StickMayhem {
     public sealed class Fighter {
         public int Seat, Lives, Starter, Weapon, Magazine, Reserve, Jumps, Bombs = 3, Respawns;
         public double X, Y, Vx, Vy, AimX, AimY, Impact, Cooldown, ReloadTime, BombCooldown, Invulnerable, Respawn, DropTime, HitStun;
-        public double ShieldTime, JetFuel, InvisibleTime, WeaponTime, MeleeSwing, SpeedTime, FireRamp;
+        public double ShieldTime, JetFuel, InvisibleTime, WeaponTime, MeleeSwing, SpeedTime, FireRamp, SlowTime;
         public bool Grounded, JetOwned;
         public string Popup;
         public double PopupTime;
     }
     public sealed class Shot {
         public int Id, Owner;
-        public double X, Y, Vx, Vy, Push, Time;
-        public bool Rocket, Energy, DirectKill;
+        public double X, Y, Vx, Vy, Push, ImpactPush, Time;
+        public bool Rocket, Energy, DirectKill, SlowTarget;
     }
     public sealed class Grenade {
         public int Id, Owner;
@@ -156,7 +157,7 @@ namespace StickMayhem {
             var start = Rules.Arenas[State.Map].Platforms.Where(t => p.X >= t.X && p.X <= t.X + t.Width).OrderByDescending(t => t.Y).First();
             p.Y = start.Y - 1; p.Vx = p.Vy = 0; p.Jumps = 0; p.Grounded = false; p.Impact = 0;
             p.Bombs = 3; EquipStarter(p); p.Cooldown = p.ReloadTime = 0; p.BombCooldown = 0;
-            p.ShieldTime = p.JetFuel = p.InvisibleTime = p.WeaponTime = p.MeleeSwing = p.SpeedTime = p.FireRamp = 0; p.JetOwned = false;
+            p.ShieldTime = p.JetFuel = p.InvisibleTime = p.WeaponTime = p.MeleeSwing = p.SpeedTime = p.FireRamp = p.SlowTime = 0; p.JetOwned = false;
             p.Invulnerable = 1.8; p.Respawn = 0; p.HitStun = p.DropTime = 0;
             p.AimX = p.Seat == 0 ? 760 : 240; p.AimY = p.Y - 26;
             Popup(p, p.Lives == 1 && p.Respawns > 0 ? "背水一战" : Rules.Weapons[p.Weapon].Name);
@@ -210,12 +211,13 @@ namespace StickMayhem {
                 double sx = Math.Cos(angle + offset), sy = Math.Sin(angle + offset);
                 State.Shots.Add(new Shot { Id = ++nextId, Owner = p.Seat, X = p.X + dx * 23, Y = p.Y - 25 + dy * 23,
                     Vx = sx * weapon.Speed, Vy = sy * weapon.Speed, Push = weapon.Push, Time = weapon.Rocket || weapon.DirectKill ? 2.2 : 1.1,
-                    Rocket = weapon.Rocket, Energy = weapon.Energy, DirectKill = weapon.DirectKill });
+                    ImpactPush = weapon.ImpactPush, Rocket = weapon.Rocket, Energy = weapon.Energy, DirectKill = weapon.DirectKill, SlowTarget = weapon.SlowTarget });
             }
             if (weapon.Explosive) State.Grenades.Add(new Grenade { Id = ++nextId, Owner = p.Seat,
                 X = p.X + dx * 23, Y = p.Y - 25 + dy * 23, Vx = dx * weapon.Speed + p.Vx * .25,
                 Vy = dy * weapon.Speed, Fuse = 1.25, Launched = true });
-            p.Cooldown = weapon.Energy ? weapon.Interval - (weapon.Interval - weapon.MinInterval) * Rules.Clamp(p.FireRamp / weapon.RampDuration, 0, 1) : weapon.Interval;
+            double shotInterval = weapon.MinInterval > 0 && weapon.RampDuration > 0 ? weapon.Interval - (weapon.Interval - weapon.MinInterval) * Rules.Clamp(p.FireRamp / weapon.RampDuration, 0, 1) : weapon.Interval;
+            p.Cooldown = shotInterval * (p.SpeedTime > 0 ? .5 : 1);
             if (weapon.DirectKill) {
                 p.Vx = Rules.Clamp(p.Vx - dx * 790, -1050, 1050); p.Vy = Rules.Clamp(p.Vy - dy * 790, -900, 950);
                 p.Grounded = false; p.HitStun = .16;
@@ -230,7 +232,7 @@ namespace StickMayhem {
         void DirectDeath(Fighter p, string reason, bool shatter = false) {
             if (shatter) State.Shatters.Add(new Shatter { Id = ++nextId, Owner = p.Seat, X = p.X, Y = p.Y });
             p.Lives--; p.Respawns++; p.Respawn = p.Lives > 0 ? 1.1 : 0;
-            p.Vx = p.Vy = 0; p.Cooldown = p.ReloadTime = 0; p.ShieldTime = p.JetFuel = p.InvisibleTime = p.WeaponTime = p.MeleeSwing = p.SpeedTime = p.FireRamp = 0; p.JetOwned = false;
+            p.Vx = p.Vy = 0; p.Cooldown = p.ReloadTime = 0; p.ShieldTime = p.JetFuel = p.InvisibleTime = p.WeaponTime = p.MeleeSwing = p.SpeedTime = p.FireRamp = p.SlowTime = 0; p.JetOwned = false;
             Log("成员 " + (p.Seat + 1) + " " + reason + " · 剩余 " + p.Lives + " 命");
         }
         void Throw(Fighter p) {
@@ -240,13 +242,13 @@ namespace StickMayhem {
                 Vx = dx * 510 + p.Vx * .3, Vy = dy * 350 - 220 });
             p.Bombs--; p.BombCooldown = .7;
         }
-        void Knock(Fighter p, double dx, double dy, double push) {
-            if (p.Lives <= 0 || p.Respawn > 0 || p.Invulnerable > 0 || p.ShieldTime > 0) return;
+        bool Knock(Fighter p, double dx, double dy, double push, double impactPush = -1) {
+            if (p.Lives <= 0 || p.Respawn > 0 || p.Invulnerable > 0 || p.ShieldTime > 0) return false;
             double factor = 1 + p.Impact / 120;
-            p.Impact = Math.Min(180, p.Impact + push / 18);
+            p.Impact = Math.Min(180, p.Impact + (impactPush < 0 ? push : impactPush) / 18);
             p.Vx = Rules.Clamp(p.Vx + dx * push * factor, -1050, 1050);
             p.Vy = Rules.Clamp(p.Vy + dy * push * factor - push * .24, -900, 950);
-            p.Grounded = false; p.HitStun = .16;
+            p.Grounded = false; p.HitStun = .16; return true;
         }
         void Explode(double x, double y, double radius, double push, bool rocket = false) {
             State.Bursts.Add(new Burst { X = x, Y = y, Radius = radius, Time = rocket ? .55 : .48, Rocket = rocket });
@@ -275,7 +277,8 @@ namespace StickMayhem {
                 p.PopupTime = Math.Max(0, p.PopupTime - Rules.Dt);
                 p.Invulnerable = Math.Max(0, p.Invulnerable - Rules.Dt); p.HitStun = Math.Max(0, p.HitStun - Rules.Dt);
                 p.Cooldown = Math.Max(0, p.Cooldown - Rules.Dt); p.BombCooldown = Math.Max(0, p.BombCooldown - Rules.Dt);
-                double oldReload = p.ReloadTime; p.ReloadTime = Math.Max(0, p.ReloadTime - Rules.Dt);
+                p.SlowTime = Math.Max(0, p.SlowTime - Rules.Dt);
+                double oldReload = p.ReloadTime; p.ReloadTime = Math.Max(0, p.ReloadTime - Rules.Dt * (p.SpeedTime > 0 ? 2 : 1));
                 if (oldReload > 0 && p.ReloadTime == 0) FinishReload(p);
                 p.MeleeSwing = Math.Max(0, p.MeleeSwing - Rules.Dt);
                 p.ShieldTime = Math.Max(0, p.ShieldTime - Rules.Dt); p.InvisibleTime = Math.Max(0, p.InvisibleTime - Rules.Dt); p.SpeedTime = Math.Max(0, p.SpeedTime - Rules.Dt);
@@ -296,7 +299,7 @@ namespace StickMayhem {
                     bool fresh = State.Tick - inputTicks[seat] <= 30;
                     int move = fresh ? (input.Right ? 1 : 0) - (input.Left ? 1 : 0) : 0;
                     if (p.HitStun <= 0) {
-                        double target = move * (p.SpeedTime > 0 ? 430 : 275);
+                        double target = move * 275 * (p.SpeedTime > 0 ? 2 : 1) * (p.SlowTime > 0 ? .5 : 1);
                         double approach = (p.Grounded ? 1500 : 1050) * Rules.Dt;
                         if (move != 0) p.Vx += Rules.Clamp(target - p.Vx, -approach, approach);
                         else p.Vx *= Math.Max(0, 1 - (p.Grounded ? 8 : 1.8) * Rules.Dt);
@@ -329,7 +332,10 @@ namespace StickMayhem {
                 if (enemy != null) {
                     if (s.DirectKill) DirectDeath(enemy, "被克莱博击中", true);
                     else if (s.Rocket) Explode(s.X, s.Y, 190, 880, true);
-                    else { double len = Math.Sqrt(s.Vx * s.Vx + s.Vy * s.Vy); Knock(enemy, s.Vx / len, s.Vy / len, s.Push); }
+                    else {
+                        double len = Math.Sqrt(s.Vx * s.Vx + s.Vy * s.Vy);
+                        if (Knock(enemy, s.Vx / len, s.Vy / len, s.Push, s.ImpactPush > 0 ? s.ImpactPush : -1) && s.SlowTarget) enemy.SlowTime = 2;
+                    }
                     State.Shots.Remove(s); continue;
                 }
                 bool platform = s.Rocket && Rules.Arenas[State.Map].Platforms.Any(t => s.Vy > 0 && oy < t.Y && s.Y >= t.Y && s.X >= t.X && s.X <= t.X + t.Width);
@@ -417,7 +423,7 @@ namespace StickMayhem {
         internal void DropBigCrate(double x, int weapon) {
             State.Crates.Add(new Crate { Id = ++nextId, X = x, Y = -35, Weapon = weapon, Large = true });
         }
-        internal int RandomAirdropWeapon() { int[] pool = { 3, 4, 5, 7, 9, 10 }; return pool[random.Next(pool.Length)]; }
+        internal int RandomAirdropWeapon() { int[] pool = { 3, 4, 5, 7, 9, 10, 13 }; return pool[random.Next(pool.Length)]; }
         internal int RandomBigAirdropWeapon() { int[] pool = { 6, 8, 11, 12 }; return pool[random.Next(pool.Length)]; }
         internal void DropPowerup(double x, int kind) {
             State.Powerups.Add(new Powerup { Id = ++nextId, X = x, Y = -35, Kind = kind });

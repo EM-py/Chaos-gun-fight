@@ -69,11 +69,11 @@ namespace StickMayhem {
                     !Number(p.AimX, -300, 1300) || !Number(p.AimY, -250, 850) || !Number(p.Impact, 0, 180) ||
                     !Number(p.Cooldown, 0, 1.3) || !Number(p.ReloadTime, 0, 3.1) || !Number(p.BombCooldown, 0, .8) || !Number(p.Invulnerable, 0, 2) ||
                     !Number(p.Respawn, 0, 1.2) || !Number(p.DropTime, 0, .3) || !Number(p.HitStun, 0, .2) ||
-                    !Number(p.ShieldTime, 0, 6.1) || !Number(p.JetFuel, 0, 3.1) || !Number(p.InvisibleTime, 0, 5.1) || !Number(p.SpeedTime, 0, 5.1) || !Number(p.FireRamp, 0, 1.21) ||
+                    !Number(p.ShieldTime, 0, 6.1) || !Number(p.JetFuel, 0, 3.1) || !Number(p.InvisibleTime, 0, 5.1) || !Number(p.SpeedTime, 0, 5.1) || !Number(p.SlowTime, 0, 2.1) || !Number(p.FireRamp, 0, 1.21) ||
                     !Number(p.WeaponTime, 0, 15.1) || !Number(p.MeleeSwing, 0, .3) || !Number(p.PopupTime, 0, 5.1) || p.Popup == null || p.Popup.Length > 30) return false;
             }
             foreach (var shot in s.Shots) if (shot == null || shot.Owner < 0 || shot.Owner >= s.Players.Length || !Number(shot.X, -160, 1160) || !Number(shot.Y, -230, 750) ||
-                !Number(shot.Vx, -3000, 3000) || !Number(shot.Vy, -3000, 3000) || !Number(shot.Push, 0, 800) || !Number(shot.Time, 0, 2.3)) return false;
+                !Number(shot.Vx, -3000, 3000) || !Number(shot.Vy, -3000, 3000) || !Number(shot.Push, 0, 800) || !Number(shot.ImpactPush, 0, 800) || !Number(shot.Time, 0, 2.3)) return false;
             foreach (var g in s.Grenades) if (g == null || g.Owner < 0 || g.Owner >= s.Players.Length || !Number(g.X, -200, 1200) || !Number(g.Y, -800, 800) ||
                 !Number(g.Vx, -1000, 1000) || !Number(g.Vy, -900, 1800) || !Number(g.Fuse, 0, 1.4)) return false;
             foreach (var c in s.Crates) if (c == null || c.Weapon < 0 || c.Weapon >= Rules.Weapons.Length || !Number(c.X, 0, 1000) || !Number(c.Y, -40, 740) ||

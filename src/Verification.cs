@@ -27,23 +27,27 @@ namespace StickMayhem {
             return new InputFrame { Session = m.State.Session, Seq = ++seq, Jump = jump, Bomb = bomb, Drop = drop, Fire = fire, AimX = x, AimY = y };
         }
         static void Core(string folder) {
-            Check(Rules.Weapons.Length == 13 && Rules.Arenas.Length == 6, "thirteen weapons six arenas");
+            Check(Rules.Weapons.Length == 14 && Rules.Arenas.Length == 6, "fourteen weapons six arenas");
             var m = New(0, 0); var p = m.State.Players[0];
             Check(Wire.Valid(m.State), "initial snapshot");
             Check(Rules.StarterCount == 3 && Rules.Weapons.Take(3).Select(w => w.Name).SequenceEqual(new[] { "左轮", "USP", "格洛克" }), "three pistol starter choices");
             Check(p.Weapon == 0 && p.Magazine == 6 && p.Reserve == -1 && p.Bombs == 3, "custom starter has infinite reserve and finite magazine");
             Check(Rules.Weapons[0].Reload == 3 && Rules.Weapons[1].Magazine == 12 && Rules.Weapons[1].Reload == 2 &&
                 Rules.Weapons[2].Magazine == 20 && Rules.Weapons[2].Automatic && Rules.Weapons[2].Push < Rules.Weapons[1].Push && Rules.Weapons[1].Push < Rules.Weapons[0].Push,
-                "requested pistol magazines reloads damage and automatic fire");
+                "requested pistol magazines reloads damage and continuous held fire");
+            Check(Rules.Weapons[0].Automatic && Rules.Weapons[1].Automatic && Rules.Weapons[0].Interval > Rules.Weapons[1].Interval && Rules.Weapons[1].Interval > Rules.Weapons[2].Interval,
+                "revolver and USP repeat while held at their slower configured fire rates");
             Check(Rules.Weapons[0].Push == 420, "revolver knockback damage increased");
             Check(Rules.Weapons[9].Name == "突击步枪" && Rules.Weapons[9].Magazine == 30 && Rules.Weapons[9].Ammo == 60 && Rules.Weapons[9].Push < Rules.Weapons[0].Push && Rules.Weapons[9].Push > Rules.Weapons[2].Push && Rules.Weapons[9].Interval > Rules.Weapons[2].Interval && Rules.Weapons[9].Automatic,
                 "assault rifle has one spare 30-round magazine, slightly lower impact and fire rate than requested comparators");
             Check(Rules.Weapons[10].Name == "冲锋枪" && Rules.Weapons[10].Push == Rules.Weapons[1].Push && Rules.Weapons[10].Interval < Rules.Weapons[2].Interval && Rules.Weapons[10].Automatic,
                 "submachine gun matches USP impact and fires slightly faster than Glock");
-            Check(Rules.Weapons[11].Name == "电能冲锋枪" && Rules.Weapons[11].Energy && Rules.Weapons[11].Magazine == 45 && Rules.Weapons[11].Interval > Rules.Weapons[11].MinInterval && Rules.Weapons[11].Automatic,
-                "Volt-inspired energy SMG has a blue 45-round magazine and increasing rate of fire");
+            Check(Rules.Weapons[11].Name == "专注冲锋枪" && Rules.Weapons[11].Energy && Rules.Weapons[11].Magazine == 45 && Rules.Weapons[11].Interval > Rules.Weapons[11].MinInterval && Rules.Weapons[11].Automatic,
+                "Focus SMG keeps its blue 45-round magazine and increasing rate of fire");
             Check(Rules.Weapons[12].Name == "克莱博" && Rules.Weapons[12].DirectKill && Rules.Weapons[12].BoltAction && Rules.Weapons[12].Magazine == 5 && Rules.Weapons[12].Reload == 1,
                 "Kraber has five shots, one-second bolt reload, instant shattering hits and heavy recoil");
+            Check(Rules.Weapons[13].Name == "电能冲锋枪" && Rules.Weapons[13].Energy && Rules.Weapons[13].SlowTarget && Rules.Weapons[13].Magazine == 30 && Rules.Weapons[13].Ammo == 60 && Rules.Weapons[13].Push == Rules.Weapons[2].Push && Rules.Weapons[13].ImpactPush == Rules.Weapons[10].Push,
+                "ordinary-drop electric SMG uses blue bullets, Glock knockback, SMG impact gain and two magazines");
             foreach (int index in new[] { 9, 10 }) {
                 m = New(index, 0); p = m.State.Players[0]; p.Magazine = 0; p.Reserve = 30;
                 m.Submit(0, Frame(m, 0, 0, 0, true, p.X + 100, p.Y - 25)); m.Step();
@@ -60,6 +64,18 @@ namespace StickMayhem {
             Check(m.State.Shots.Any(s => s.Energy) && p.Magazine == 44, "energy SMG fires a visible blue projectile");
             for (int i = 0; i < 110; i++) { m.Submit(0, Frame(m, 0, 0, 0, true, p.X + 400, p.Y - 25)); m.Step(); }
             Check(p.Cooldown < slowStart && p.FireRamp >= 1.19, "holding the energy SMG spins up to a higher fire rate");
+            m = New(13, 0); p = m.State.Players[0]; var energyTarget = m.State.Players[1]; p.X = 450; energyTarget.X = 490; p.Y = energyTarget.Y = 499;
+            m.Submit(0, Frame(m, 0, 0, 0, true, energyTarget.X, energyTarget.Y - 25)); m.Step();
+            Check(Math.Abs(energyTarget.Impact - Rules.Weapons[10].Push / 18.0) < .01 && Math.Abs(energyTarget.Vx - Rules.Weapons[2].Push) < 1 && Math.Abs(energyTarget.SlowTime - 2) < .01,
+                "electric round matches SMG impact gain and Glock knockback while applying a two-second slow");
+            double slowedStart = energyTarget.X; energyTarget.Vx = energyTarget.Vy = 0; energyTarget.Grounded = true;
+            for (int i = 0; i < 30; i++) { var right = Frame(m, 0, 0, 0, false, energyTarget.X + 100, energyTarget.Y); right.Right = true; m.Submit(1, right); m.Step(); }
+            var control = New(0, 0); var controlEnemy = control.State.Players[1]; controlEnemy.X = 490; controlEnemy.Y = 499; controlEnemy.Grounded = true;
+            for (int i = 0; i < 30; i++) { var right = Frame(control, 0, 0, 0, false, 600, 499); right.Right = true; control.Submit(1, right); control.Step(); }
+            Check(energyTarget.X - slowedStart < (controlEnemy.X - 490) * .6 && energyTarget.SlowTime > 1.4, "electric hits cut movement speed by fifty percent for two seconds");
+            m = New(1, 0); p = m.State.Players[0]; p.SpeedTime = 5;
+            m.Submit(0, Frame(m, 0, 0, 0, true, p.X + 300, p.Y - 25)); m.Step();
+            Check(Math.Abs(p.Cooldown - Rules.Weapons[1].Interval / 2) < .01, "Fire Up doubles firing rate");
             m = New(12, 0); p = m.State.Players[0]; var kraberEnemy = m.State.Players[1]; p.X = 450; kraberEnemy.X = 525; p.Magazine = 5;
             m.Submit(0, Frame(m, 0, 0, 0, true, kraberEnemy.X, kraberEnemy.Y - 25)); m.Step();
             Check(kraberEnemy.Lives == 2 && m.State.Shatters.Any(s => s.Owner == kraberEnemy.Seat) && p.Vx < -700, "Kraber hit shatters instantly and its backblast launches the shooter backward");
@@ -71,7 +87,7 @@ namespace StickMayhem {
             Check(Rules.Weapons[7].Magazine == 12 && Rules.Weapons[7].Ammo == 12, "grenade launcher has one finite twelve-round magazine");
             Check(Rules.Weapons[3].Push > 100 && Rules.Weapons[3].Pellets > 5, "shotgun impact and pellet count increased");
             var normalPool = Enumerable.Range(0, 300).Select(i => m.RandomAirdropWeapon()).ToArray();
-            Check(normalPool.All(w => w >= Rules.StarterCount && !Rules.LargeDropWeapon(w)) && normalPool.Contains(9) && normalPool.Contains(10), "normal airdrops include assault rifle and SMG while excluding starter and special weapons");
+            Check(normalPool.All(w => w >= Rules.StarterCount && !Rules.LargeDropWeapon(w)) && normalPool.Contains(9) && normalPool.Contains(10) && normalPool.Contains(13), "normal airdrops include assault rifle, SMG and electric SMG while excluding starter and special weapons");
             Check(Rules.Arenas.All(a => a.Spawns.Length == 6 && a.Spawns.All(x => a.Platforms.Any(t => x >= t.X && x <= t.X + t.Width))), "all six maps provide six valid player spawn points");
             m = new Match(Enumerable.Range(0, 6).Select(i => new MatchOptions { Map = 4, Starter = i % 3, Lives = 3 }).ToArray(), 16);
             Check(m.State.Players.Length == 6 && Wire.Valid(m.State) && m.State.Players.Select(fighter => fighter.Seat).SequenceEqual(Enumerable.Range(0, 6)), "six numbered players enter a large map and produce a valid network snapshot");
@@ -157,9 +173,13 @@ namespace StickMayhem {
             var bad = Frame(m, 0, 0, 0, true, 500, 500); bad.Session = "wrong"; Check(!m.Submit(0, bad), "wrong session rejected");
             bad = Frame(m, 0, 0, 0, true, Double.NaN, 500); Check(!m.Submit(0, bad), "NaN aim rejected");
             bad = Frame(m, 50, 0, 0, false, 500, 500); Check(!m.Submit(0, bad), "jump nonce abuse rejected");
-            // Semi-auto pistols require a fresh click; Glock can keep firing while held.
-            m = New(0, 0); p = m.State.Players[0]; m.Submit(0, Frame(m, 0, 0, 0, true, p.X, 100));
-            for (int i = 0; i < 25; i++) m.Step(); Check(p.Magazine == 5, "revolver does not auto-fire while held");
+            // All three starter pistols can repeat fire while the mouse button stays held.
+            m = New(0, 0); p = m.State.Players[0];
+            for (int i = 0; i < 70; i++) { m.Submit(0, Frame(m, 0, 0, 0, true, p.X, 100)); m.Step(); }
+            Check(p.Magazine <= 4 && p.Magazine >= 3, "revolver repeats slowly while held");
+            m = New(1, 0); p = m.State.Players[0];
+            for (int i = 0; i < 40; i++) { m.Submit(0, Frame(m, 0, 0, 0, true, p.X, 100)); m.Step(); }
+            Check(p.Magazine <= 9 && p.Magazine >= 8, "USP repeats slowly while held");
             m = New(2, 0); p = m.State.Players[0]; m.Submit(0, Frame(m, 0, 0, 0, true, p.X, 100));
             for (int i = 0; i < 25; i++) m.Step(); Check(p.Magazine <= 16, "Glock supports automatic fire");
             // Empty each infinite-reserve pistol and verify requested reload duration/refill.
@@ -207,6 +227,9 @@ namespace StickMayhem {
                     double speedStart = p.X; p.Vx = 0;
                     for (int i = 0; i < 30; i++) { var fast = Frame(m, 0, 0, 0, false, p.X + 200, p.Y - 25); fast.Right = true; m.Submit(0, fast); m.Step(); }
                     Check(p.X > speedStart + 100 && p.SpeedTime > 4.4, "speed buff boosts movement while its timer is active");
+                    var speedControl = New(0, 0); var controlFighter = speedControl.State.Players[0];
+                    for (int i = 0; i < 30; i++) { var right = Frame(speedControl, 0, 0, 0, false, controlFighter.X + 200, controlFighter.Y); right.Right = true; speedControl.Submit(0, right); speedControl.Step(); }
+                    Check(Math.Abs(p.Vx - controlFighter.Vx * 2) < 1, "Fire Up exactly doubles run speed");
                     for (int i = 0; i < 300; i++) m.Step(); Check(p.SpeedTime == 0 && p.PopupTime == 0, "speed buff and flashing label expire after five seconds");
                 }
             }
@@ -382,6 +405,7 @@ namespace StickMayhem {
             Render(w, Path.Combine(folder, "sword-shatter.png"));
             var newDrops = Fixture(); newDrops.Players[0].Weapon = 11; newDrops.Players[0].Magazine = 45; newDrops.Players[0].FireRamp = 1.1;
             newDrops.Players[0].Popup = "火力全开"; newDrops.Players[0].PopupTime = 4.2; newDrops.Players[0].SpeedTime = 4.2;
+            newDrops.Players[1].Weapon = 12; newDrops.Players[1].Magazine = 3;
             newDrops.Shots.Add(new Shot { Owner = 0, X = 430, Y = 260, Vx = 1280, Vy = 0, Energy = true });
             newDrops.Shots.Add(new Shot { Owner = 1, X = 490, Y = 275, Vx = 2600, Vy = 0, DirectKill = true });
             newDrops.Bursts.Add(new Burst { X = 630, Y = 320, Radius = 190, Time = .38, Rocket = true });
@@ -392,13 +416,13 @@ namespace StickMayhem {
             var offscreen = Fixture(); offscreen.Players[0].X = 1080; offscreen.Players[0].Y = 700; offscreen.Players[1].X = -70; offscreen.Players[1].Y = 250;
             w.SetPreview(offscreen); w.Field.State = offscreen; w.Field.Seat = 0; Render(w, Path.Combine(folder, "offscreen-arrows.png"));
             File.WriteAllText(Path.Combine(folder, "verification.json"), Rules.Serializer().Serialize(new {
-                Passed = true, Assertions = checks, Weapons = 13, PistolStarters = 3, NormalDropsIncludeAssaultRifleAndSMG = true, AssaultRifle30RoundsAndOneSpareMagazine = true, SMGMatchesUSPImpactAndOutfiresGlock = true, LargeDropsContainGatlingSwordEnergySMGAndKraber = true, EnergySMG45RoundSpinUpBlueBullets = true, KraberFiveRoundOneSecondBoltInstantKillAndBackblast = true, LargeDropWeaponsCannotBeReplaced = true, SwordPickupGrantsFiveSecondInvisibility = true, RocketBlastBoostAndVisualEffect = true, SpeedBuffFiveSecondFireUpPopup = true, RevolverAndThrownBombBoosted = true, Maps = 6, MouseAiming = true, DoubleJump = true, ParachuteCrates = true,
+                Passed = true, Assertions = checks, Weapons = 14, PistolStarters = 3, StarterPistolsHoldToFire = true, NormalDropsIncludeElectricSMGAndApplyTwoSecondSlow = true, LargeDropsIncludeFocusSMGAndKraber = true, KnockbackAndImpactGainIndependentlyConfigured = true, FocusSMG45RoundSpinUpBlueBullets = true, KraberAmmoOverhead = true, KraberFiveRoundOneSecondBoltInstantKillAndBackblast = true, LargeDropWeaponsCannotBeReplaced = true, SwordPickupGrantsFiveSecondInvisibility = true, RocketBlastBoostAndVisualEffect = true, SpeedBuffDoublesMovementAndFireRateWithWhiteCountdown = true, RevolverAndThrownBombBoosted = true, Maps = 6, MouseAiming = true, DoubleJump = true, ParachuteCrates = true,
                 MagazineReloads = true, ReloadProgressArc = true, BotPistolReloads = true, GrenadeLauncherFallback = true, ShotgunBoostedImpact = true, ShieldAndRocketFlight = true, JetFuel = true, InvisibilityBothViews = true, Invisibility = true, GrenadeLauncher = true, Gatling60And15SecondFatal = true, PrisonSwordInstantKill = true, ShatterAnimation = true, FinalStandPopup = true,
                 ChineseFloatingFadingPickup = true, CustomStarter = true, TcpTwoWpfPeers = true, AuthoritativePhysics = true,
                 HeadImpactPercent = true, OffscreenArrows = true, DisconnectStops = true, ActualWpfRenders = true, PhysicalTwoComputerTest = false, PhysicalMouseTest = false
             }));
             File.WriteAllText(Path.Combine(folder, "verification.txt"), "PASS: " + checks + " assertions.\r\n" +
-                "Twelve full AI battles across all six maps; pistol, rifle and SMG fire/reload rules; Volt-inspired energy SMG spin-up and blue rounds; Kraber five shots, one-second bolt cycle, instant shattering hits and self-knockback; larger rocket blast, knockback and expanding flame-ring effect; five-second speed buff, movement boost and blinking Fire Up label; four large-drop weapons and replacement lock; all existing grenade, Gatling, sword, invisibility, shield, jetpack, final-stand, shatter, respawn and win rules.\r\n" +
+                "Twelve full AI battles across all six maps; USP and revolver held automatic fire; Focus SMG blue 45-round spin-up; ordinary-drop electric SMG with separate impact gain, Glock knockback and 50% movement slow; Kraber ammo counter, five-shot magazine, one-second bolt cycle, instant shattering hits and backblast; doubled movement and fire rate with white countdown; large-drop pool and replacement rules; all existing weapons, explosive effects, buffs and LAN rules.\r\n" +
                 "Actual TCP loopback WPF multiplayer: six peers and numbered seats, synchronized snapshots/input, Gatling and sword actions, new speed pickup and Kraber large-drop weapon, rocket flight, invisibility, version rejection and disconnect.\r\n" +
                 "Actual WPF renders at 96 DPI, three themes and two fixed sizes, popup visible/fading/gone frames, reload progress arc, shatter animation, overhead impact percent and offscreen direction arrows.\r\n" +
                 "Not tested on two physical computers or through physical mouse/keyboard automation. Preferences and clipboard untouched.\r\n");
