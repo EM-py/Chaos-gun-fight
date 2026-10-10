@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -16,10 +17,12 @@ namespace StickMayhem {
         internal readonly bool VerificationMode;
         readonly string root = AppDomain.CurrentDomain.BaseDirectory;
         internal ArenaView Field;
-        Grid body, lobby, live, settings, help, records;
+        Grid body, lobby, live, settings, help, records, changelog, updatePage;
         TextBox address, port;
         TextBlock lobbyStatus, status, ownHud, enemyHud, timerHud, hint, recordText;
         Button hostButton, joinButton, leaveButton, resumeButton, copyButton, addressButton, mapButton, livesButton;
+        Button checkUpdateButton, downloadUpdateButton, installUpdateButton;
+        TextBlock updateVersionText, updateStatusText;
         Button[] starters = new Button[Rules.StarterCount];
         string theme = "codex", appearance = "dark", page = "lobby", fingerprint;
         bool minimal, host, practice, playing, stopped;
@@ -32,6 +35,9 @@ namespace StickMayhem {
         string[] addresses = new string[0];
         readonly HashSet<Key> pressed = new HashSet<Key>();
         Peer peer;
+        UpdateManifest latestUpdate;
+        string downloadedPackage, updateMessage = "尚未检查。";
+        bool updateBusy;
         internal Match Engine;
         internal MatchState Current;
         MatchState previous;
@@ -43,12 +49,13 @@ namespace StickMayhem {
         internal bool IsMinimal { get { return minimal; } }
         internal int Seat { get { return seat; } }
         internal int RoomCount { get { return roomOptions.Count; } }
+        internal bool UpdatePagesReady { get { return changelog != null && updatePage != null && checkUpdateButton != null && downloadUpdateButton != null && installUpdateButton != null; } }
         internal string DebugState { get { return "playing=" + playing + ", stopped=" + stopped + ", finished=" + (Current != null && Current.Finished) + ", status=" + (lobbyStatus == null ? "" : lobbyStatus.Text); } }
         internal int ListeningPort { get { return peer == null ? 0 : peer.ListeningPort; } }
 
         public PanelWindow(bool verification) {
             VerificationMode = verification;
-            Title = "协作面板"; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
+            Title = "协作面板 · v" + UpdateService.CurrentVersion; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
             WindowStartupLocation = WindowStartupLocation.CenterScreen; FontFamily = new FontFamily("Microsoft YaHei UI");
             FontSize = 11; FontWeight = FontWeights.Normal; UseLayoutRounding = true; SnapsToDevicePixels = true;
             TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
@@ -109,17 +116,18 @@ namespace StickMayhem {
             var shell = Rows(minimal ? 25 : 28, minimal ? 23 : 26, -1, 18); outer.Child = shell;
             var title = new Grid { Background = surface }; title.ColumnDefinitions.Add(new ColumnDefinition());
             title.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) }); title.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
-            var label = T("▣  协作面板", 11, false); label.Margin = new Thickness(8, 0, 0, 0); title.Children.Add(label);
+            var label = T("▣  协作面板 · v" + UpdateService.CurrentVersion, 11, false); label.Margin = new Thickness(8, 0, 0, 0); title.Children.Add(label);
             title.MouseLeftButtonDown += delegate(object sender, MouseButtonEventArgs e) { if (e.OriginalSource == label || e.OriginalSource == title) DragMove(); };
             Put(title, Btn("—", delegate { ClearInput(); WindowState = WindowState.Minimized; }, false), 0, 1); Put(title, Btn("×", Close, false), 0, 2); Put(shell, title, 0, 0);
             var tabs = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(6, 0, 0, 0) };
             tabs.Children.Add(Btn("项目", delegate { ShowPage(Current == null ? "lobby" : "live"); }, false));
             tabs.Children.Add(Btn("连接", delegate { ShowPage("lobby"); }, false)); tabs.Children.Add(Btn("记录", delegate { ShowPage("records"); }, false));
             tabs.Children.Add(Btn("设置", delegate { ShowPage("settings"); }, false)); tabs.Children.Add(Btn("说明", delegate { ShowPage("help"); }, false));
+            tabs.Children.Add(Btn("更新日志", delegate { ShowPage("changelog"); }, false));
             var test = Btn("test", StartPractice, false); test.FontSize = 8; test.ToolTip = "本地火柴人练习（电脑对手）"; tabs.Children.Add(test);
             Put(shell, new Border { BorderBrush = line, BorderThickness = new Thickness(0, 0, 0, 1), Child = tabs }, 1, 0);
             body = new Grid { Margin = new Thickness(minimal ? 6 : 8, 4, minimal ? 6 : 8, 3) }; Put(shell, body, 2, 0);
-            BuildLobby(addr, p, message); BuildLive(); BuildSettings(); BuildHelp(); BuildRecords();
+            BuildLobby(addr, p, message); BuildLive(); BuildSettings(); BuildHelp(); BuildRecords(); BuildChangelog(); BuildUpdatePage();
             var footer = new Grid { Background = surface };
             status = T("", 9, true); status.Margin = new Thickness(8, 0, 0, 0); footer.Children.Add(status);
             var quiet = T("静音  100%", 9, true); quiet.HorizontalAlignment = HorizontalAlignment.Right; quiet.Margin = new Thickness(0, 0, 8, 0); footer.Children.Add(quiet);
@@ -188,11 +196,105 @@ namespace StickMayhem {
             recordText = T("尚未开始。", 10, true); recordText.TextWrapping = TextWrapping.Wrap; recordText.VerticalAlignment = VerticalAlignment.Top;
             Put(records, new ScrollViewer { Content = recordText, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, 1, 0);
         }
+        void BuildChangelog() {
+            changelog = Rows(25, -1); body.Children.Add(changelog);
+            var header = new Grid(); header.ColumnDefinitions.Add(new ColumnDefinition()); header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Put(header, T("更新日志 · v" + UpdateService.CurrentVersion, 11, false), 0, 0);
+            var version = Btn("版本更新", delegate { ShowPage("updater"); }, false); version.Height = 22; version.FontSize = 9; Put(header, version, 0, 1); Put(changelog, header, 0, 0);
+            var items = new StackPanel();
+            items.Children.Add(Note("v1.6.1", new[] {
+                "新增顶栏更新日志，按版本折叠查看更新内容。",
+                "可从 GitHub 检查最新包、下载并校验 SHA-256，再安装重启。",
+                "更新保留 preferences.ini；更新时关闭游戏后替换文件，失败时恢复旧版。"
+            }, true));
+            items.Children.Add(Note("v1.6.0", new[] {
+                "新增普通空投电能冲锋枪，蓝色弹丸命中减速；大空投增加专注冲锋枪和克莱博。",
+                "火力全开提升移速与射速并显示白色倒计时；克莱博显示剩余弹数。",
+                "USP 与左轮支持按住连续射击；保留六人局域网、六张地图和既有空投武器。"
+            }, false));
+            Put(changelog, new ScrollViewer { Content = items, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, 1, 0);
+        }
+        Expander Note(string version, string[] lines, bool expanded) {
+            var bullets = new StackPanel { Margin = new Thickness(5, 3, 5, 8) };
+            foreach (string lineText in lines) {
+                var lineTextBlock = T("· " + lineText, 9, true); lineTextBlock.TextWrapping = TextWrapping.Wrap; lineTextBlock.Margin = new Thickness(0, 2, 0, 2); bullets.Children.Add(lineTextBlock);
+            }
+            return new Expander { Header = version, Content = bullets, IsExpanded = expanded, Foreground = ink, FontSize = 10, Margin = new Thickness(0, 1, 0, 2) };
+        }
+        void BuildUpdatePage() {
+            updatePage = Rows(23, 28, -1, 22, 28); body.Children.Add(updatePage);
+            Put(updatePage, T("版本更新 · 当前 v" + UpdateService.CurrentVersion, 11, false), 0, 0);
+            updateVersionText = T("GitHub 最新稳定版 · 点击检查更新", 10, false);
+            Put(updatePage, new Border { BorderBrush = line, BorderThickness = new Thickness(1), Background = back, Padding = new Thickness(6, 2, 6, 2), Child = updateVersionText }, 1, 0);
+            var description = T("检查并获取 GitHub 上的最新完整包。下载完成后会进行 SHA-256 校验；安装时自动关闭并重启游戏。preferences.ini 会保留。", 9, true);
+            description.TextWrapping = TextWrapping.Wrap; description.VerticalAlignment = VerticalAlignment.Top; description.Margin = new Thickness(0, 8, 0, 0); Put(updatePage, description, 2, 0);
+            updateStatusText = T(updateMessage, 9, true); updateStatusText.TextWrapping = TextWrapping.Wrap; updateStatusText.VerticalAlignment = VerticalAlignment.Top; Put(updatePage, updateStatusText, 3, 0);
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            buttons.Children.Add(Btn("返回", delegate { ShowPage("changelog"); }, false));
+            checkUpdateButton = Btn("检查更新", CheckForUpdate, false); buttons.Children.Add(checkUpdateButton);
+            downloadUpdateButton = Btn("下载", DownloadUpdate, false); buttons.Children.Add(downloadUpdateButton);
+            installUpdateButton = Btn("安装重启", InstallUpdate, false); buttons.Children.Add(installUpdateButton);
+            Put(updatePage, buttons, 4, 0); RefreshUpdateUi();
+        }
+        void CheckForUpdate() {
+            if (VerificationMode || updateBusy) return;
+            updateBusy = true; latestUpdate = null; downloadedPackage = null; updateMessage = "正在连接 GitHub 检查最新版本…"; RefreshUpdateUi();
+            ThreadPool.QueueUserWorkItem(delegate {
+                UpdateManifest result = null; string error = null;
+                try { result = UpdateService.CheckLatest(); } catch (Exception ex) { error = ex.Message; }
+                if (Dispatcher.HasShutdownStarted) return;
+                Dispatcher.BeginInvoke(new Action(delegate {
+                    updateBusy = false; latestUpdate = result;
+                    if (result == null) updateMessage = "检查失败：" + (String.IsNullOrWhiteSpace(error) ? "无法读取 GitHub 更新信息。" : error);
+                    else if (UpdateService.IsNewer(result.Version, UpdateService.CurrentVersion)) updateMessage = "发现新版 v" + result.Version + "。\n" + result.Notes;
+                    else updateMessage = "已是最新版本 v" + UpdateService.CurrentVersion + "。";
+                    RefreshUpdateUi();
+                }));
+            });
+        }
+        void DownloadUpdate() {
+            if (VerificationMode || updateBusy || latestUpdate == null || !UpdateService.IsNewer(latestUpdate.Version, UpdateService.CurrentVersion)) return;
+            updateBusy = true; updateMessage = "正在下载并校验 v" + latestUpdate.Version + "…"; RefreshUpdateUi();
+            UpdateManifest manifest = latestUpdate;
+            ThreadPool.QueueUserWorkItem(delegate {
+                string result = null, error = null;
+                try { result = UpdateService.DownloadVerified(manifest); } catch (Exception ex) { error = ex.Message; }
+                if (Dispatcher.HasShutdownStarted) return;
+                Dispatcher.BeginInvoke(new Action(delegate {
+                    updateBusy = false; downloadedPackage = result;
+                    updateMessage = result == null ? "下载失败：" + (String.IsNullOrWhiteSpace(error) ? "无法下载更新包。" : error) : "下载完成，SHA-256 校验通过。结束房间后可安装重启。";
+                    RefreshUpdateUi();
+                }));
+            });
+        }
+        void InstallUpdate() {
+            if (VerificationMode || updateBusy || String.IsNullOrWhiteSpace(downloadedPackage) || !File.Exists(downloadedPackage)) return;
+            if (peer != null || CanPlay()) { updateMessage = "请先结束对局或离开局域网房间，再安装更新。"; RefreshUpdateUi(); return; }
+            string updater = Path.Combine(root, "StickMayhem.Update.exe");
+            if (!File.Exists(updater)) { updateMessage = "当前目录缺少更新组件，请先下载完整新版压缩包手动覆盖。"; RefreshUpdateUi(); return; }
+            try {
+                string args = "--install " + Process.GetCurrentProcess().Id + " \"" + root.TrimEnd(Path.DirectorySeparatorChar) + "\" \"" + downloadedPackage + "\" \"" + latestUpdate.Sha256 + "\" \"" + latestUpdate.Version + "\"";
+                Process.Start(new ProcessStartInfo { FileName = updater, Arguments = args, WorkingDirectory = root, UseShellExecute = true });
+                Application.Current.Shutdown();
+            } catch (Exception ex) { updateMessage = "无法启动更新器：" + ex.Message; RefreshUpdateUi(); }
+        }
+        void RefreshUpdateUi() {
+            if (updateVersionText == null) return;
+            bool newer = latestUpdate != null && UpdateService.IsNewer(latestUpdate.Version, UpdateService.CurrentVersion);
+            updateVersionText.Text = latestUpdate == null ? "GitHub 最新稳定版 · 尚未检查" : "GitHub 最新稳定版 · v" + latestUpdate.Version;
+            if (updateStatusText != null) updateStatusText.Text = updateMessage;
+            if (checkUpdateButton != null) checkUpdateButton.IsEnabled = !updateBusy;
+            if (downloadUpdateButton != null) downloadUpdateButton.IsEnabled = !updateBusy && newer && String.IsNullOrWhiteSpace(downloadedPackage);
+            if (installUpdateButton != null) installUpdateButton.IsEnabled = !updateBusy && !String.IsNullOrWhiteSpace(downloadedPackage) && File.Exists(downloadedPackage) && peer == null && !CanPlay();
+        }
         internal void ShowPage(string value) {
             if (value != "live") ClearInput(); page = value;
             lobby.Visibility = value == "lobby" ? Visibility.Visible : Visibility.Collapsed; live.Visibility = value == "live" ? Visibility.Visible : Visibility.Collapsed;
             settings.Visibility = value == "settings" ? Visibility.Visible : Visibility.Collapsed; help.Visibility = value == "help" ? Visibility.Visible : Visibility.Collapsed;
-            records.Visibility = value == "records" ? Visibility.Visible : Visibility.Collapsed; Refresh();
+            records.Visibility = value == "records" ? Visibility.Visible : Visibility.Collapsed;
+            changelog.Visibility = value == "changelog" ? Visibility.Visible : Visibility.Collapsed;
+            updatePage.Visibility = value == "updater" ? Visibility.Visible : Visibility.Collapsed;
+            Refresh();
             if (value == "live" && Field != null) Field.Focus();
         }
         bool CanPlay() { return playing && !stopped && Current != null && !Current.Finished; }
@@ -366,7 +468,7 @@ namespace StickMayhem {
             }
         }
         internal void Refresh() {
-            if (status == null) return; bool busy = peer != null;
+            if (status == null) return; RefreshUpdateUi(); bool busy = peer != null;
             hostButton.Content = host && busy ? "开始对战" : "创建房间";
             hostButton.IsEnabled = !busy || host && !playing && roomOptions.Count >= 2; joinButton.IsEnabled = !busy; leaveButton.IsEnabled = busy || Current != null; resumeButton.IsEnabled = Current != null;
             address.IsReadOnly = busy && host; port.IsEnabled = !busy; copyButton.IsEnabled = address.Text.Length > 0; addressButton.IsEnabled = addresses.Length > 1;

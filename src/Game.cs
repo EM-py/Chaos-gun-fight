@@ -15,7 +15,7 @@ namespace StickMayhem {
     public sealed class Platform { public double X, Y, Width; }
     public sealed class Arena { public string Name; public Platform[] Platforms; public double[] Spawns; }
     public static class Rules {
-        public const string Version = "StickMayhem/1.6.0";
+        public const string Version = "StickMayhem/1.6.1";
         public const double Dt = 1.0 / 60, Width = 1000, Height = 600, Gravity = 1450;
         public const int StarterCount = 3;
         public static bool LargeDropWeapon(int weapon) { return weapon == 6 || weapon == 8 || weapon == 11 || weapon == 12; }

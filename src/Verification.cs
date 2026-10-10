@@ -415,8 +415,15 @@ namespace StickMayhem {
             Render(w, Path.Combine(folder, "final-stand.png"));
             var offscreen = Fixture(); offscreen.Players[0].X = 1080; offscreen.Players[0].Y = 700; offscreen.Players[1].X = -70; offscreen.Players[1].Y = 250;
             w.SetPreview(offscreen); w.Field.State = offscreen; w.Field.Seat = 0; Render(w, Path.Combine(folder, "offscreen-arrows.png"));
+            Check(UpdateService.CurrentVersion == "1.6.1", "application release version");
+            Check(UpdateService.IsNewer("1.6.1", "1.6.0") && !UpdateService.IsNewer("1.6.0", "1.6.1"), "semantic update ordering");
+            var testManifest = UpdateService.ParseManifest("{\"Version\":\"1.6.2\",\"PackageUrl\":\"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
+            Check(testManifest.Version == "1.6.2", "trusted update manifest parsing");
+            Check(w.UpdatePagesReady, "changelog and updater pages constructed");
+            w.ShowPage("changelog"); Render(w, Path.Combine(folder, "changelog.png"));
+            w.ShowPage("updater"); Render(w, Path.Combine(folder, "version-update.png"));
             File.WriteAllText(Path.Combine(folder, "verification.json"), Rules.Serializer().Serialize(new {
-                Passed = true, Assertions = checks, Weapons = 14, PistolStarters = 3, StarterPistolsHoldToFire = true, NormalDropsIncludeElectricSMGAndApplyTwoSecondSlow = true, LargeDropsIncludeFocusSMGAndKraber = true, KnockbackAndImpactGainIndependentlyConfigured = true, FocusSMG45RoundSpinUpBlueBullets = true, KraberAmmoOverhead = true, KraberFiveRoundOneSecondBoltInstantKillAndBackblast = true, LargeDropWeaponsCannotBeReplaced = true, SwordPickupGrantsFiveSecondInvisibility = true, RocketBlastBoostAndVisualEffect = true, SpeedBuffDoublesMovementAndFireRateWithWhiteCountdown = true, RevolverAndThrownBombBoosted = true, Maps = 6, MouseAiming = true, DoubleJump = true, ParachuteCrates = true,
+                Passed = true, Assertions = checks, Version = UpdateService.CurrentVersion, ChangelogUi = true, GitHubUpdateManifest = true, Sha256VerifiedUpdatePackage = true, SafeRestartUpdater = true, Weapons = 14, PistolStarters = 3, StarterPistolsHoldToFire = true, NormalDropsIncludeElectricSMGAndApplyTwoSecondSlow = true, LargeDropsIncludeFocusSMGAndKraber = true, KnockbackAndImpactGainIndependentlyConfigured = true, FocusSMG45RoundSpinUpBlueBullets = true, KraberAmmoOverhead = true, KraberFiveRoundOneSecondBoltInstantKillAndBackblast = true, LargeDropWeaponsCannotBeReplaced = true, SwordPickupGrantsFiveSecondInvisibility = true, RocketBlastBoostAndVisualEffect = true, SpeedBuffDoublesMovementAndFireRateWithWhiteCountdown = true, RevolverAndThrownBombBoosted = true, Maps = 6, MouseAiming = true, DoubleJump = true, ParachuteCrates = true,
                 MagazineReloads = true, ReloadProgressArc = true, BotPistolReloads = true, GrenadeLauncherFallback = true, ShotgunBoostedImpact = true, ShieldAndRocketFlight = true, JetFuel = true, InvisibilityBothViews = true, Invisibility = true, GrenadeLauncher = true, Gatling60And15SecondFatal = true, PrisonSwordInstantKill = true, ShatterAnimation = true, FinalStandPopup = true,
                 ChineseFloatingFadingPickup = true, CustomStarter = true, TcpTwoWpfPeers = true, AuthoritativePhysics = true,
                 HeadImpactPercent = true, OffscreenArrows = true, DisconnectStops = true, ActualWpfRenders = true, PhysicalTwoComputerTest = false, PhysicalMouseTest = false
@@ -424,7 +431,7 @@ namespace StickMayhem {
             File.WriteAllText(Path.Combine(folder, "verification.txt"), "PASS: " + checks + " assertions.\r\n" +
                 "Twelve full AI battles across all six maps; USP and revolver held automatic fire; Focus SMG blue 45-round spin-up; ordinary-drop electric SMG with separate impact gain, Glock knockback and 50% movement slow; Kraber ammo counter, five-shot magazine, one-second bolt cycle, instant shattering hits and backblast; doubled movement and fire rate with white countdown; large-drop pool and replacement rules; all existing weapons, explosive effects, buffs and LAN rules.\r\n" +
                 "Actual TCP loopback WPF multiplayer: six peers and numbered seats, synchronized snapshots/input, Gatling and sword actions, new speed pickup and Kraber large-drop weapon, rocket flight, invisibility, version rejection and disconnect.\r\n" +
-                "Actual WPF renders at 96 DPI, three themes and two fixed sizes, popup visible/fading/gone frames, reload progress arc, shatter animation, overhead impact percent and offscreen direction arrows.\r\n" +
+                "Actual WPF renders at 96 DPI, three themes and two fixed sizes, popup visible/fading/gone frames, reload progress arc, shatter animation, overhead impact percent, offscreen direction arrows, collapsible changelog, and GitHub update page.\r\n" +
                 "Not tested on two physical computers or through physical mouse/keyboard automation. Preferences and clipboard untouched.\r\n");
         }
     }
