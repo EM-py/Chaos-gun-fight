@@ -16,7 +16,7 @@ namespace StickMayhem {
     public sealed class Platform { public double X, Y, Width; }
     public sealed class Arena { public string Name; public Platform[] Platforms; public double[] Spawns; }
     public static class Rules {
-        public const string Version = "StickMayhem/1.6.3";
+        public const string Version = "StickMayhem/1.6.4";
         public const double Dt = 1.0 / 60, Width = 1000, Height = 600, Gravity = 1450;
         public const int StarterCount = 3;
         public static bool LargeDropWeapon(int weapon) { return weapon == 6 || weapon == 8 || weapon == 11 || weapon == 12; }
@@ -25,7 +25,7 @@ namespace StickMayhem {
             new Weapon { Name = "USP", Interval = .25, Speed = 1280, Push = 185, Pellets = 1, Spread = .018, Magazine = 12, Ammo = 36, Reload = 2, Automatic = true },
             new Weapon { Name = "格洛克", Interval = .11, Speed = 1180, Push = 92, Pellets = 1, Spread = .05, Magazine = 20, Ammo = 60, Reload = 1.5, Automatic = true },
             new Weapon { Name = "霰弹枪", Interval = .8, Speed = 900, Push = 180, Pellets = 6, Spread = .14, Magazine = 8, Ammo = 8, Recoil = 2 },
-            new Weapon { Name = "狙击枪", Interval = 1.1, Speed = 2300, Push = 490, Pellets = 1, Spread = 0, Magazine = 6, Ammo = 6, Recoil = 3 },
+            new Weapon { Name = "狙击枪", Interval = 1.1, Speed = 2300, Push = 520, Pellets = 1, Spread = 0, Magazine = 6, Ammo = 6, Recoil = 3 },
             new Weapon { Name = "火箭筒", Interval = 1.2, Speed = 610, Push = 550, Pellets = 1, Spread = 0, Magazine = 5, Ammo = 5, Rocket = true, Recoil = 3 }
             ,new Weapon { Name = "加特林", Pickup = "牢张的愤怒", Interval = .035, Speed = 1500, Push = 220, Pellets = 1, Spread = .065, Magazine = 60, Ammo = 60, Automatic = true, Recoil = 2 }
             ,new Weapon { Name = "榴弹发射器", Interval = .72, Speed = 700, Push = 760, Pellets = 1, Spread = .025, Magazine = 12, Ammo = 12, Explosive = true, Recoil = 1 }
@@ -351,8 +351,11 @@ namespace StickMayhem {
                 }
             }
             foreach (var g in State.Grenades.ToArray()) {
-                double oldY = g.Y; g.Fuse -= Rules.Dt; g.Vy += Rules.Gravity * .75 * Rules.Dt;
+                double oldX = g.X, oldY = g.Y; g.Fuse -= Rules.Dt; g.Vy += Rules.Gravity * .75 * Rules.Dt;
                 g.X += g.Vx * Rules.Dt; g.Y += g.Vy * Rules.Dt;
+                var directHit = g.Launched ? State.Players.Where(target => target.Seat != g.Owner && target.Respawn <= 0 && target.Lives > 0 &&
+                    SegmentHit(oldX, oldY, g.X, g.Y, target)).OrderBy(target => (target.X - oldX) * (target.X - oldX) + (target.Y - oldY) * (target.Y - oldY)).FirstOrDefault() : null;
+                if (directHit != null) { Explode(g.X, g.Y, 155, 730); State.Grenades.Remove(g); continue; }
                 var landing = Rules.Arenas[State.Map].Platforms.Where(t => oldY <= t.Y - 5 && g.Y >= t.Y - 5 && g.Vy > 0 && g.X >= t.X && g.X <= t.X + t.Width).OrderBy(t => t.Y).FirstOrDefault();
                 if (landing != null) { g.Y = landing.Y - 5; g.Vy *= -.48; g.Vx *= .72; }
                 if (g.Fuse <= 0) { Explode(g.X, g.Y, g.Launched ? 155 : 175, g.Launched ? 730 : 940); State.Grenades.Remove(g); }

@@ -202,6 +202,10 @@ namespace StickMayhem {
             Put(header, T("更新日志 · v" + UpdateService.CurrentVersion, 11, false), 0, 0);
             var version = Btn("版本更新", delegate { ShowPage("updater"); }, false); version.Height = 22; version.FontSize = 9; Put(header, version, 0, 1); Put(changelog, header, 0, 0);
             var items = new StackPanel();
+            items.Children.Add(Note("v1.6.4", new[] {
+                "榴弹发射器的榴弹触碰敌人时立即引爆。",
+                "狙击枪单发冲击力小幅提高。"
+            }, true));
             items.Children.Add(Note("v1.6.3", new[] {
                 "突击步枪、冲锋枪改为总计 30 发，打完直接切回开局手枪，不再换弹。",
                 "地图道具出现 5 秒未拾取后闪烁 2 秒，随后消失。",

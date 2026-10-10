@@ -38,6 +38,7 @@ namespace StickMayhem {
             Check(Rules.Weapons[0].Automatic && Rules.Weapons[1].Automatic && Rules.Weapons[0].Interval > Rules.Weapons[1].Interval && Rules.Weapons[1].Interval > Rules.Weapons[2].Interval,
                 "revolver and USP repeat while held at their slower configured fire rates");
             Check(Rules.Weapons[0].Push == 420, "revolver knockback damage increased");
+            Check(Rules.Weapons[4].Push == 520, "sniper impact force receives the requested small increase");
             Check(Rules.Weapons[9].Name == "突击步枪" && Rules.Weapons[9].Magazine == 30 && Rules.Weapons[9].Ammo == 30 && Rules.Weapons[9].Reload == 0 && Rules.Weapons[9].Push < Rules.Weapons[0].Push && Rules.Weapons[9].Push > Rules.Weapons[2].Push && Rules.Weapons[9].Interval > Rules.Weapons[2].Interval && Rules.Weapons[9].Automatic,
                 "assault rifle has thirty total rounds and returns to starter without reloading");
             Check(Rules.Weapons[10].Name == "冲锋枪" && Rules.Weapons[10].Ammo == 30 && Rules.Weapons[10].Reload == 0 && Rules.Weapons[10].Push == Rules.Weapons[1].Push && Rules.Weapons[10].Interval < Rules.Weapons[2].Interval && Rules.Weapons[10].Automatic,
@@ -119,9 +120,15 @@ namespace StickMayhem {
             Check(m.State.Shots.Count == 6 && m.State.Shots.Select(s => s.Vy).Distinct().Count() == 6, "six-pellet shotgun spread");
             m = New(7, 0); p = m.State.Players[0]; m.Submit(0, Frame(m, 0, 0, 0, true, 900, 350)); m.Step();
             Check(m.State.Grenades.Count == 1 && m.State.Grenades[0].Launched && p.Magazine == 11, "grenade launcher fires ballistic explosive projectile");
+            m = New(7, 0); p = m.State.Players[0]; var grenadeTarget = m.State.Players[1]; p.X = 450; grenadeTarget.X = 510; p.Y = grenadeTarget.Y = 499;
+            m.Submit(0, Frame(m, 0, 0, 0, true, grenadeTarget.X, grenadeTarget.Y - 25));
+            m.Step(); Check(m.State.Grenades.Count == 1, "direct grenade test launches projectile");
+            for (int i = 0; i < 20 && m.State.Grenades.Count > 0; i++) m.Step();
+            Check(m.State.Grenades.Count == 0 && m.State.Bursts.Any(b => !b.Rocket && b.Radius == 155) && grenadeTarget.Impact > 0,
+                "launched grenade detonates immediately on direct enemy contact");
             m = New(4, 0); var enemy = m.State.Players[1]; p = m.State.Players[0]; p.X = 450; enemy.X = 490;
             m.Submit(0, Frame(m, 0, 0, 0, true, enemy.X, enemy.Y - 25)); m.Step();
-            Check(enemy.Impact > 0 && enemy.Vx > 300 && enemy.Vy < 0, "fast swept bullet hit and directional knockback");
+            Check(Math.Abs(enemy.Impact - Rules.Weapons[4].Push / 18.0) < .01 && enemy.Vx > 300 && enemy.Vy < 0, "sniper hit uses increased impact force and directional knockback");
             int healthLives = enemy.Lives; Check(healthLives == 3, "hits affect knockback not stock count");
             m = New(5, 0); p = m.State.Players[0]; enemy = m.State.Players[1]; p.X = 450; enemy.X = 560; enemy.Y = p.Y;
             m.Submit(0, Frame(m, 0, 0, 0, true, enemy.X, enemy.Y - 25)); m.Step();
@@ -425,10 +432,10 @@ namespace StickMayhem {
             Render(w, Path.Combine(folder, "final-stand.png"));
             var offscreen = Fixture(); offscreen.Players[0].X = 1080; offscreen.Players[0].Y = 700; offscreen.Players[1].X = -70; offscreen.Players[1].Y = 250;
             w.SetPreview(offscreen); w.Field.State = offscreen; w.Field.Seat = 0; Render(w, Path.Combine(folder, "offscreen-arrows.png"));
-            Check(UpdateService.CurrentVersion == "1.6.3", "application release version");
-            Check(UpdateService.IsNewer("1.6.3", "1.6.2") && !UpdateService.IsNewer("1.6.2", "1.6.3"), "semantic update ordering");
-            var testManifest = UpdateService.ParseManifest("{\"Version\":\"1.6.3\",\"PackageUrl\":\"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
-            Check(testManifest.Version == "1.6.3", "trusted update manifest parsing");
+            Check(UpdateService.CurrentVersion == "1.6.4", "application release version");
+            Check(UpdateService.IsNewer("1.6.4", "1.6.3") && !UpdateService.IsNewer("1.6.3", "1.6.4"), "semantic update ordering");
+            var testManifest = UpdateService.ParseManifest("{\"Version\":\"1.6.4\",\"PackageUrl\":\"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
+            Check(testManifest.Version == "1.6.4", "trusted update manifest parsing");
             Check(w.UpdatePagesReady, "changelog and updater pages constructed");
             w.ShowPage("changelog"); Render(w, Path.Combine(folder, "changelog.png"));
             w.ShowPage("updater"); Render(w, Path.Combine(folder, "version-update.png"));
