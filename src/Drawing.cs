@@ -103,9 +103,10 @@ namespace StickMayhem {
                 }
             }
             foreach (var item in State.Powerups) {
-                double size = Math.Max(22, 8 / scale); var pp = new Pen(item.Kind == 0 ? Accent : item.Kind == 1 ? Muted : Ink, 1.2 / scale);
+                double size = Math.Max(22, 8 / scale); Brush powerInk = item.Kind == 3 ? new SolidColorBrush(Color.FromRgb(35, 151, 255)) : item.Kind == 0 ? Accent : item.Kind == 1 ? Muted : Ink;
+                var pp = new Pen(powerInk, 1.2 / scale);
                 dc.DrawEllipse(Surface, pp, new Point(item.X, item.Y), size / 2, size / 2);
-                Text(dc, item.Kind == 0 ? "盾" : item.Kind == 1 ? "火" : "隐", item.X, item.Y - 7, 11 / scale, item.Kind == 0 ? Accent : Ink, true);
+                Text(dc, item.Kind == 0 ? "盾" : item.Kind == 1 ? "火" : item.Kind == 2 ? "隐" : "速", item.X, item.Y - 7, 11 / scale, powerInk, true);
                 if (!item.Landed) {
                     dc.DrawEllipse(null, pp, new Point(item.X, item.Y - 42), 33, 9);
                     dc.DrawLine(pp, new Point(item.X - 33, item.Y - 40), new Point(item.X, item.Y - 11));
@@ -115,8 +116,11 @@ namespace StickMayhem {
             foreach (var shot in State.Shots) {
                 double length = Math.Sqrt(shot.Vx * shot.Vx + shot.Vy * shot.Vy);
                 if (length < 1) continue;
-                dc.DrawLine(new Pen(shot.Owner == Seat ? Accent : Muted, shot.Rocket ? 2.5 / scale : 1 / scale),
-                    new Point(shot.X, shot.Y), new Point(shot.X - shot.Vx / length * (shot.Rocket ? 16 : 9), shot.Y - shot.Vy / length * (shot.Rocket ? 16 : 9)));
+                Brush shotColor = shot.Energy ? new SolidColorBrush(Color.FromRgb(46, 174, 255)) : shot.Owner == Seat ? Accent : Muted;
+                double trail = shot.Rocket || shot.DirectKill ? 18 : shot.Energy ? 13 : 9;
+                dc.DrawLine(new Pen(shotColor, shot.Rocket ? 2.5 / scale : shot.Energy || shot.DirectKill ? 2 / scale : 1 / scale),
+                    new Point(shot.X, shot.Y), new Point(shot.X - shot.Vx / length * trail, shot.Y - shot.Vy / length * trail));
+                if (shot.Energy) dc.DrawEllipse(shotColor, null, new Point(shot.X, shot.Y), 2.4 / scale, 2.4 / scale);
             }
             foreach (var bomb in State.Grenades) {
                 Brush bombInk = bomb.Launched ? Accent : Ink;
@@ -125,9 +129,23 @@ namespace StickMayhem {
                 if (bomb.Launched) dc.DrawLine(new Pen(bombInk, 1.2 / scale), new Point(bomb.X, bomb.Y), new Point(bomb.X - bomb.Vx * .018, bomb.Y - bomb.Vy * .018));
             }
             foreach (var burst in State.Bursts) {
-                dc.PushOpacity(Math.Max(0, burst.Time / .28) * .5);
-                double radius = burst.Radius * (.5 + .5 * (1 - burst.Time / .28));
-                dc.DrawEllipse(null, new Pen(Muted, 1 / scale), new Point(burst.X, burst.Y), radius, radius); dc.Pop();
+                double duration = burst.Rocket ? .55 : .48;
+                double progress = Rules.Clamp(1 - burst.Time / duration, 0, 1);
+                double fade = 1 - progress;
+                dc.PushOpacity(fade * (burst.Rocket ? .68 : .48));
+                double radius = burst.Radius * (.22 + .78 * progress);
+                Brush flash = burst.Rocket ? new SolidColorBrush(Color.FromArgb(180, 255, 105, 35)) : new SolidColorBrush(Color.FromArgb(110, 255, 170, 55));
+                Brush core = burst.Rocket ? new SolidColorBrush(Color.FromArgb(150, 255, 215, 115)) : new SolidColorBrush(Color.FromArgb(75, 255, 225, 130));
+                dc.DrawEllipse(core, null, new Point(burst.X, burst.Y), radius * .31, radius * .31);
+                dc.DrawEllipse(null, new Pen(flash, (burst.Rocket ? 5 : 2.5) / scale), new Point(burst.X, burst.Y), radius, radius * .78);
+                dc.DrawEllipse(null, new Pen(Muted, 1 / scale), new Point(burst.X, burst.Y), radius * .68, radius * .53);
+                if (burst.Rocket) for (int ray = 0; ray < 10; ray++) {
+                    double a = ray * Math.PI / 5 + progress * .16;
+                    double inner = radius * .52, outer = radius * (.83 + .12 * ((ray % 2) == 0 ? 1 : 0));
+                    dc.DrawLine(new Pen(flash, 2 / scale), new Point(burst.X + Math.Cos(a) * inner, burst.Y + Math.Sin(a) * inner),
+                        new Point(burst.X + Math.Cos(a) * outer, burst.Y + Math.Sin(a) * outer));
+                }
+                dc.Pop();
             }
             foreach (var p in State.Players) {
                 if (p.Lives <= 0 || p.Respawn > 0) continue;
@@ -193,8 +211,11 @@ namespace StickMayhem {
                     }
                 }
                 if (p.PopupTime > 0) {
-                    dc.PushOpacity(Match.PopupOpacity(p));
-                    Text(dc, p.Popup, Rules.Clamp(x, 95, 905), Math.Max(4, y - (p.Weapon == 6 || p.Weapon == 8 ? 100 : 82) - Match.PopupRise(p)), (Minimal ? 10 : 12) / scale, Ink, true); dc.Pop();
+                    bool speedPopup = p.Popup == "火力全开" && p.SpeedTime > 0;
+                    double opacityPopup = speedPopup ? (State.Tick % 18 < 12 ? Rules.Clamp(p.SpeedTime / .65, .3, 1) : .25) : Match.PopupOpacity(p);
+                    dc.PushOpacity(opacityPopup);
+                    Text(dc, p.Popup, Rules.Clamp(x, 95, 905), Math.Max(4, y - (p.Weapon == 6 || p.Weapon == 8 || p.Weapon == 11 || p.Weapon == 12 ? 100 : 82) - Match.PopupRise(p)),
+                        (Minimal ? 10 : 12) / scale, speedPopup ? new SolidColorBrush(Color.FromRgb(35, 151, 255)) : Ink, true); dc.Pop();
                 }
                 if ((p.Weapon == 6 || p.Weapon == 8) && p.WeaponTime > 0 && p.PopupTime <= 0) {
                     string weaponLabel = p.Weapon == 6 ? "牢张的愤怒" : "坐牢之剑";
