@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Web.Script.Serialization;
@@ -28,7 +29,42 @@ namespace StickMayhem {
             request.Accept = "application/json, application/octet-stream, */*";
             request.CachePolicy = new System.Net.Cache.RequestCachePolicy(System.Net.Cache.RequestCacheLevel.NoCacheNoStore);
             request.Timeout = 20000; request.ReadWriteTimeout = 20000;
+            Uri uri = new Uri(url);
+            if (String.Equals(uri.Host, "raw.githubusercontent.com", StringComparison.OrdinalIgnoreCase)) {
+                string authorization = GetGitHubAuthorization();
+                if (!String.IsNullOrEmpty(authorization)) request.Headers[HttpRequestHeader.Authorization] = authorization;
+            }
             return request;
+        }
+        // Reuse a GitHub credential already stored by Git Credential Manager (for example via GitHub Desktop).
+        // Never persist the token in the game directory or include it in diagnostics.
+        static string GetGitHubAuthorization() {
+            Process process = null;
+            try {
+                var start = new ProcessStartInfo("git", "credential fill") {
+                    UseShellExecute = false, CreateNoWindow = true,
+                    RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true
+                };
+                start.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
+                start.EnvironmentVariables["GCM_INTERACTIVE"] = "Never";
+                process = Process.Start(start);
+                if (process == null) return null;
+                process.BeginErrorReadLine();
+                process.StandardInput.Write("protocol=https\nhost=github.com\npath=EM-py/Chaos-gun-fight.git\n\n");
+                process.StandardInput.Close();
+                if (!process.WaitForExit(8000)) { try { process.Kill(); } catch { } return null; }
+                string username = null, password = null;
+                string output = process.StandardOutput.ReadToEnd();
+                foreach (string line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)) {
+                    int separator = line.IndexOf('='); if (separator <= 0) continue;
+                    string key = line.Substring(0, separator), value = line.Substring(separator + 1);
+                    if (key == "username") username = value;
+                    else if (key == "password") password = value;
+                }
+                if (String.IsNullOrEmpty(username) || String.IsNullOrEmpty(password)) return null;
+                return "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes(username + ":" + password));
+            } catch { return null; }
+            finally { if (process != null) process.Dispose(); }
         }
         public static UpdateManifest CheckLatest() {
             using (var response = (HttpWebResponse)Request(ManifestUrl).GetResponse())

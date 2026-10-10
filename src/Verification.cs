@@ -415,8 +415,8 @@ namespace StickMayhem {
             Render(w, Path.Combine(folder, "final-stand.png"));
             var offscreen = Fixture(); offscreen.Players[0].X = 1080; offscreen.Players[0].Y = 700; offscreen.Players[1].X = -70; offscreen.Players[1].Y = 250;
             w.SetPreview(offscreen); w.Field.State = offscreen; w.Field.Seat = 0; Render(w, Path.Combine(folder, "offscreen-arrows.png"));
-            Check(UpdateService.CurrentVersion == "1.6.1", "application release version");
-            Check(UpdateService.IsNewer("1.6.1", "1.6.0") && !UpdateService.IsNewer("1.6.0", "1.6.1"), "semantic update ordering");
+            Check(UpdateService.CurrentVersion == "1.6.2", "application release version");
+            Check(UpdateService.IsNewer("1.6.2", "1.6.1") && !UpdateService.IsNewer("1.6.1", "1.6.2"), "semantic update ordering");
             var testManifest = UpdateService.ParseManifest("{\"Version\":\"1.6.2\",\"PackageUrl\":\"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
             Check(testManifest.Version == "1.6.2", "trusted update manifest parsing");
             Check(w.UpdatePagesReady, "changelog and updater pages constructed");

@@ -23,7 +23,7 @@ $manifest = [ordered]@{
     Version = $version
     PackageUrl = 'https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip'
     Sha256 = $packageHash
-    Notes = '新增折叠式更新日志与 GitHub 更新；下载校验、自动重启和失败恢复。'
+    Notes = '新增更新日志与 GitHub 更新，支持 Git Credential Manager 私有仓库访问、SHA-256 校验和失败恢复。'
 } | ConvertTo-Json -Compress
 [System.IO.File]::WriteAllText((Join-Path $taskRoot 'update.json'), $manifest, (New-Object System.Text.UTF8Encoding($false)))
 Write-Output ('Packaged v' + $version + ' · SHA-256 ' + $packageHash)

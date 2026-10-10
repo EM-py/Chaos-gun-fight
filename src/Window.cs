@@ -202,6 +202,10 @@ namespace StickMayhem {
             Put(header, T("更新日志 · v" + UpdateService.CurrentVersion, 11, false), 0, 0);
             var version = Btn("版本更新", delegate { ShowPage("updater"); }, false); version.Height = 22; version.FontSize = 9; Put(header, version, 0, 1); Put(changelog, header, 0, 0);
             var items = new StackPanel();
+            items.Children.Add(Note("v1.6.2", new[] {
+                "更新器复用本机 GitHub Desktop / Git Credential Manager 的登录凭据，支持私有仓库下载。",
+                "凭据仅用于当前 HTTPS 请求，不写入游戏文件或错误信息；公开仓库仍可匿名更新。"
+            }, true));
             items.Children.Add(Note("v1.6.1", new[] {
                 "新增顶栏更新日志，按版本折叠查看更新内容。",
                 "可从 GitHub 检查最新包、下载并校验 SHA-256，再安装重启。",

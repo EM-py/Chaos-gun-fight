@@ -1,4 +1,4 @@
-火柴人平台竞技 · StickMayhem 1.6.1
+火柴人平台竞技 · StickMayhem 1.6.2
 
 双击 StickMayhem.exe。
 一个人：选择武器后点顶部小 test，与电脑练习。

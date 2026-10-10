@@ -1,1 +1,1 @@
-{"Version":"1.6.1","PackageUrl":"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip","Sha256":"62df987298eddecdfec2fb4094fc9e78ba8a2a0a22bc5e91ebec1c8edc56fec1","Notes":"新增折叠式更新日志与 GitHub 更新；下载校验、自动重启和失败恢复。"}
+{"Version":"1.6.2","PackageUrl":"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip","Sha256":"cc07503b995fd4db645b61136bb012b1185ed2c3dbdf639cbc9634cfea579123","Notes":"新增更新日志与 GitHub 更新，支持 Git Credential Manager 私有仓库访问、SHA-256 校验和失败恢复。"}
