@@ -40,8 +40,21 @@ namespace StickMayhem {
             Check(Rules.Weapons[0].Push == 420, "revolver knockback damage increased");
             Check(Rules.Weapons[4].Push == 520, "sniper impact force receives the requested small increase");
             var skyMatch = new Match(new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 1 }, new MatchOptions { Starter = 2, Map = 0, Lives = 3 }, 43);
-            Check(skyMatch.State.Mode == 1 && skyMatch.State.Players.All(f => f.Weapon == 12 && f.Magazine == 5 && f.Reserve == 0) && Math.Abs(Rules.GravityFor(skyMatch.State.Mode) - Rules.Gravity * .5) < .01,
-                "Sky Sniper mode starts both players with a Kraber and halves gravity");
+            Check(skyMatch.State.Mode == 1 && skyMatch.State.Players.All(f => f.Weapon == 12 && f.Magazine == 5 && f.Reserve == -1) && Math.Abs(Rules.GravityFor(skyMatch.State.Mode) - Rules.Gravity * .5) < .01,
+                "Sky Sniper mode starts both players with an infinite-ammo Kraber and halves gravity");
+            skyMatch.State.NextCrate = skyMatch.State.NextBigCrate = skyMatch.State.NextPower = .001;
+            skyMatch.Step();
+            Check(skyMatch.State.Crates.Count == 0 && skyMatch.State.Powerups.Count == 1,
+                "Sky Sniper suppresses both weapon-drop types while retaining map powerups");
+            skyMatch = new Match(new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 1 }, new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 1 }, 45);
+            p = skyMatch.State.Players[0]; p.X = 500; p.Y = 499; p.Grounded = true; p.Invulnerable = 100;
+            skyMatch.Submit(0, Frame(skyMatch, 0, 0, 0, true, 750, p.Y - 25)); skyMatch.Step();
+            Check(p.Weapon == 12 && p.Magazine == 4 && p.Reserve == -1 && Math.Abs(p.ReloadTime - 1) < .02,
+                "Sky Sniper Kraber keeps its weapon and starts a one-second bolt cycle after each shot");
+            skyMatch.Submit(0, Frame(skyMatch, 0, 0, 0, false, 750, p.Y - 25));
+            for (int i = 0; i < 62; i++) { p.X = 500; p.Y = 499; p.Vx = p.Vy = 0; p.Grounded = true; skyMatch.Step(); }
+            Check(p.Weapon == 12 && p.Magazine == 5 && p.Reserve == -1 && p.ReloadTime == 0,
+                "Sky Sniper Kraber refills to five rounds after each one-second bolt cycle");
             var normalJump = New(0, 0); var skyJump = new Match(new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 1 }, new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 1 }, 44);
             normalJump.Submit(0, Frame(normalJump, 1, 0, 0, false, 750, 300)); skyJump.Submit(0, Frame(skyJump, 1, 0, 0, false, 750, 300));
             for (int i = 0; i < 20; i++) { normalJump.Step(); skyJump.Step(); }
@@ -472,15 +485,15 @@ namespace StickMayhem {
             Render(w, Path.Combine(folder, "final-stand.png"));
             var offscreen = Fixture(); offscreen.Players[0].X = 1080; offscreen.Players[0].Y = 700; offscreen.Players[1].X = -70; offscreen.Players[1].Y = 250;
             w.SetPreview(offscreen); w.Field.State = offscreen; w.Field.Seat = 0; Render(w, Path.Combine(folder, "offscreen-arrows.png"));
-            Check(UpdateService.CurrentVersion == "1.6.6", "application release version");
-            Check(UpdateService.IsNewer("1.6.6", "1.6.5") && !UpdateService.IsNewer("1.6.5", "1.6.6"), "semantic update ordering");
-            var testManifest = UpdateService.ParseManifest("{\"Version\":\"1.6.6\",\"PackageUrl\":\"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
-            Check(testManifest.Version == "1.6.6", "trusted update manifest parsing");
+            Check(UpdateService.CurrentVersion == "1.6.7", "application release version");
+            Check(UpdateService.IsNewer("1.6.7", "1.6.6") && !UpdateService.IsNewer("1.6.6", "1.6.7"), "semantic update ordering");
+            var testManifest = UpdateService.ParseManifest("{\"Version\":\"1.6.7\",\"PackageUrl\":\"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
+            Check(testManifest.Version == "1.6.7", "trusted update manifest parsing");
             Check(w.UpdatePagesReady, "changelog and updater pages constructed");
             w.ShowPage("changelog"); Render(w, Path.Combine(folder, "changelog.png"));
             w.ShowPage("updater"); Render(w, Path.Combine(folder, "version-update.png"));
             File.WriteAllText(Path.Combine(folder, "verification.json"), Rules.Serializer().Serialize(new {
-                Passed = true, Assertions = checks, Version = UpdateService.CurrentVersion, ChangelogUi = true, GitHubUpdateManifest = true, Sha256VerifiedUpdatePackage = true, SafeRestartUpdater = true, Weapons = 14, PistolStarters = 3, StarterPistolsHoldToFire = true, NormalDropsIncludeElectricSMGAndApplyTwoSecondSlow = true, LargeDropsIncludeFocusSMGAndKraber = true, KnockbackAndImpactGainIndependentlyConfigured = true, FocusSMG45RoundSpinUpBlueBullets = true, KraberAmmoOverhead = true, KraberFiveRoundOneSecondBoltInstantKillAndBackblast = true, LargeDropWeaponsCannotBeReplaced = true, SwordPickupGrantsFiveSecondInvisibility = true, PracticeBotUsesSwordMeleeRange = true, PracticeBotAvoidsKraberRecoilFalls = true, PracticeBotBlindFiresWithoutInvisibleCoordinates = true, RocketBlastBoostAndVisualEffect = true, SpeedBuffDoublesMovementAndFireRateWithWhiteCountdown = true, RevolverAndThrownBombBoosted = true, Maps = 6, MouseAiming = true, DoubleJump = true, ParachuteCrates = true,
+                Passed = true, Assertions = checks, Version = UpdateService.CurrentVersion, ChangelogUi = true, GitHubUpdateManifest = true, Sha256VerifiedUpdatePackage = true, SafeRestartUpdater = true, Weapons = 14, PistolStarters = 3, StarterPistolsHoldToFire = true, NormalDropsIncludeElectricSMGAndApplyTwoSecondSlow = true, LargeDropsIncludeFocusSMGAndKraber = true, KnockbackAndImpactGainIndependentlyConfigured = true, FocusSMG45RoundSpinUpBlueBullets = true, KraberAmmoOverhead = true, KraberFiveRoundOneSecondBoltInstantKillAndBackblast = true, SkySniperKraberInfiniteAmmo = true, SkySniperNoWeaponDrops = true, SkySniperPowerupsRemain = true, LargeDropWeaponsCannotBeReplaced = true, SwordPickupGrantsFiveSecondInvisibility = true, PracticeBotUsesSwordMeleeRange = true, PracticeBotAvoidsKraberRecoilFalls = true, PracticeBotBlindFiresWithoutInvisibleCoordinates = true, RocketBlastBoostAndVisualEffect = true, SpeedBuffDoublesMovementAndFireRateWithWhiteCountdown = true, RevolverAndThrownBombBoosted = true, Maps = 6, MouseAiming = true, DoubleJump = true, ParachuteCrates = true,
                 MagazineReloads = true, ReloadProgressArc = true, BotPistolReloads = true, GrenadeLauncherFallback = true, ShotgunBoostedImpact = true, ShieldAndRocketFlight = true, JetFuel = true, InvisibilityBothViews = true, Invisibility = true, GrenadeLauncher = true, Gatling60And15SecondFatal = true, PrisonSwordInstantKill = true, ShatterAnimation = true, FinalStandPopup = true,
                 ChineseFloatingFadingPickup = true, CustomStarter = true, TcpTwoWpfPeers = true, AuthoritativePhysics = true,
                 HeadImpactPercent = true, OffscreenArrows = true, DisconnectStops = true, ActualWpfRenders = true, PhysicalTwoComputerTest = false, PhysicalMouseTest = false

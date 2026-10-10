@@ -16,7 +16,7 @@ namespace StickMayhem {
     public sealed class Platform { public double X, Y, Width; }
     public sealed class Arena { public string Name; public Platform[] Platforms; public double[] Spawns; }
     public static class Rules {
-        public const string Version = "StickMayhem/1.6.6";
+        public const string Version = "StickMayhem/1.6.7";
         public const double Dt = 1.0 / 60, Width = 1000, Height = 600, Gravity = 1450;
         public const int StarterCount = 3;
         public static bool LargeDropWeapon(int weapon) { return weapon == 6 || weapon == 8 || weapon == 11 || weapon == 12; }
@@ -159,7 +159,7 @@ namespace StickMayhem {
             var start = Rules.Arenas[State.Map].Platforms.Where(t => p.X >= t.X && p.X <= t.X + t.Width).OrderByDescending(t => t.Y).First();
             p.Y = start.Y - 1; p.Vx = p.Vy = 0; p.Jumps = 0; p.Grounded = false; p.Impact = 0;
             p.Bombs = 3; p.BurstRemaining = 0;
-            if (State.Mode == 1) { p.Weapon = 12; p.Magazine = Rules.Weapons[12].Magazine; p.Reserve = 0; }
+            if (State.Mode == 1) { p.Weapon = 12; p.Magazine = Rules.Weapons[12].Magazine; p.Reserve = -1; }
             else EquipStarter(p);
             p.Cooldown = p.ReloadTime = 0; p.BombCooldown = 0;
             p.ShieldTime = p.JetFuel = p.InvisibleTime = p.WeaponTime = p.MeleeSwing = p.SpeedTime = p.FireRamp = p.SlowTime = 0; p.JetOwned = false;
@@ -181,7 +181,10 @@ namespace StickMayhem {
         }
         void FinishReload(Fighter p) {
             var weapon = Rules.Weapons[p.Weapon];
-            if (weapon.BoltAction) return;
+            if (weapon.BoltAction) {
+                if (State.Mode == 1 && p.Weapon == 12 && p.Reserve < 0) p.Magazine = weapon.Magazine;
+                return;
+            }
             if (p.Reserve < 0) p.Magazine = weapon.Magazine;
             else {
                 int amount = Math.Min(weapon.Magazine - p.Magazine, p.Reserve);
@@ -240,6 +243,7 @@ namespace StickMayhem {
             if (p.Magazine == 0) {
                 p.BurstRemaining = 0;
                 if (p.Weapon == 6) DirectDeath(p, "牢张的愤怒弹药耗尽", true);
+                else if (weapon.BoltAction && State.Mode == 1 && p.Weapon == 12 && p.Reserve < 0) p.ReloadTime = weapon.Reload;
                 else if (weapon.BoltAction) { EquipStarter(p); p.FireRamp = 0; Popup(p, Rules.Weapons[p.Starter].Name + " · 备用"); }
                 else BeginReload(p);
             } else if (weapon.BoltAction) p.ReloadTime = weapon.Reload;
@@ -373,12 +377,12 @@ namespace StickMayhem {
             State.NextCrate -= Rules.Dt;
             if (State.NextCrate <= 0) {
                 State.NextCrate = 7 + random.NextDouble() * 3;
-                if (State.Crates.Count < 4) DropCrate(150 + random.NextDouble() * 700, RandomAirdropWeapon());
+                if (State.Mode != 1 && State.Crates.Count < 4) DropCrate(150 + random.NextDouble() * 700, RandomAirdropWeapon());
             }
             State.NextBigCrate -= Rules.Dt;
             if (State.NextBigCrate <= 0) {
                 State.NextBigCrate = 28 + random.NextDouble() * 8;
-                if (State.Crates.Count < 4) DropBigCrate(150 + random.NextDouble() * 700, RandomBigAirdropWeapon());
+                if (State.Mode != 1 && State.Crates.Count < 4) DropBigCrate(150 + random.NextDouble() * 700, RandomBigAirdropWeapon());
             }
             foreach (var crate in State.Crates.ToArray()) {
                 crate.Age += Rules.Dt; double oldY = crate.Y;

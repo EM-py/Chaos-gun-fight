@@ -1,4 +1,4 @@
-PASS: 2077 assertions.
+PASS: 2080 assertions.
 Practice AI sword melee approach, Kraber recoil-safe movement, and blind probing fire against invisible players; twelve full AI battles across all six maps; pistol reloads and automatic fire; Focus SMG spin-up; Kraber cycle/backblast; weapon and powerup rules.
 Actual TCP loopback WPF multiplayer: six peers and numbered seats, synchronized snapshots/input, Gatling and sword actions, new speed pickup and Kraber large-drop weapon, rocket flight, invisibility, version rejection and disconnect.
 Actual WPF renders at 96 DPI, three themes and two fixed sizes, popup visible/fading/gone frames, reload progress arc, shatter animation, overhead impact percent, offscreen direction arrows, collapsible changelog, and GitHub update page.

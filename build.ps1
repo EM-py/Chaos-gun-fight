@@ -23,7 +23,7 @@ $manifest = [ordered]@{
     Version = $version
     PackageUrl = 'https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip'
     Sha256 = $packageHash
-    Notes = '练习人机新增坐牢之剑近身策略、克莱博反冲避险和隐身盲射行为。'
+    Notes = '跳狙飞人模式克莱博无限弹药且保留一秒枪机周期；关闭武器空投，只保留地图道具刷新。'
 } | ConvertTo-Json -Compress
 [System.IO.File]::WriteAllText((Join-Path $taskRoot 'update.json'), $manifest, (New-Object System.Text.UTF8Encoding($false)))
 Write-Output ('Packaged v' + $version + ' · SHA-256 ' + $packageHash)
