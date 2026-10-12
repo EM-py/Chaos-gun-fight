@@ -18,6 +18,8 @@ namespace StickMayhem {
     public static class UpdateService {
         public const string ManifestUrl = "https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/update.json";
         const string PackageUrl = "https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip";
+        const string CdnManifestUrl = "https://cdn.jsdelivr.net/gh/EM-py/Chaos-gun-fight@main/update.json";
+        const string CdnPackageUrl = "https://cdn.jsdelivr.net/gh/EM-py/Chaos-gun-fight@main/StickMayhem-share.zip";
 
         static void ConfigureTls() {
             ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
@@ -67,12 +69,23 @@ namespace StickMayhem {
             finally { if (process != null) process.Dispose(); }
         }
         public static UpdateManifest CheckLatest() {
-            using (var response = (HttpWebResponse)Request(ManifestUrl).GetResponse())
+            try { return ReadManifest(ManifestUrl); }
+            catch (WebException) { return ReadManifest(CdnManifestUrl); }
+        }
+        static UpdateManifest ReadManifest(string url) {
+            using (var response = (HttpWebResponse)Request(url).GetResponse())
             using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8, true)) {
                 string json = reader.ReadToEnd();
                 if (json.Length > 65536) throw new InvalidDataException("更新信息超出大小限制。");
                 return ParseManifest(json);
             }
+        }
+        public static string FriendlyError(Exception error) {
+            var web = error as WebException;
+            var response = web == null ? null : web.Response as HttpWebResponse;
+            if (response != null && response.StatusCode == HttpStatusCode.NotFound)
+                return "GitHub 返回 404：更新仓库/文件不存在，或仓库尚未设为公开。分享给其他人自动更新时，仓库必须为 Public。";
+            return error == null ? "无法连接更新服务器。" : error.Message;
         }
         internal static UpdateManifest ParseManifest(string json) {
             var manifest = new JavaScriptSerializer().Deserialize<UpdateManifest>(json);
@@ -80,8 +93,8 @@ namespace StickMayhem {
             Uri package;
             if (manifest == null || !System.Version.TryParse(manifest.Version, out parsed) ||
                 !Uri.TryCreate(manifest.PackageUrl, UriKind.Absolute, out package) || package.Scheme != Uri.UriSchemeHttps ||
-                !String.Equals(package.Host, "raw.githubusercontent.com", StringComparison.OrdinalIgnoreCase) ||
-                !String.Equals(package.AbsolutePath, "/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip", StringComparison.Ordinal) ||
+                !(String.Equals(package.Host, "raw.githubusercontent.com", StringComparison.OrdinalIgnoreCase) && String.Equals(package.AbsolutePath, "/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip", StringComparison.Ordinal) ||
+                  String.Equals(package.Host, "cdn.jsdelivr.net", StringComparison.OrdinalIgnoreCase) && String.Equals(package.AbsolutePath, "/gh/EM-py/Chaos-gun-fight@main/StickMayhem-share.zip", StringComparison.Ordinal)) ||
                 String.IsNullOrWhiteSpace(manifest.Sha256) || manifest.Sha256.Length != 64 ||
                 !manifest.Sha256.All(Uri.IsHexDigit) || String.IsNullOrWhiteSpace(manifest.Notes))
                 throw new InvalidDataException("GitHub 更新信息格式无效或下载地址不受信任。");
@@ -101,14 +114,9 @@ namespace StickMayhem {
             Directory.CreateDirectory(folder);
             string file = Path.Combine(folder, Guid.NewGuid().ToString("N") + ".zip");
             try {
-                using (var response = (HttpWebResponse)Request(manifest.PackageUrl).GetResponse())
-                using (var input = response.GetResponseStream())
                 using (var output = new FileStream(file, FileMode.CreateNew, FileAccess.Write, FileShare.None)) {
-                    byte[] buffer = new byte[65536]; int count; long total = 0;
-                    while ((count = input.Read(buffer, 0, buffer.Length)) > 0) {
-                        total += count; if (total > 100L * 1024 * 1024) throw new InvalidDataException("更新包超过 100 MB 限制。");
-                        output.Write(buffer, 0, count);
-                    }
+                    try { DownloadTo(manifest.PackageUrl, output); }
+                    catch (WebException) { output.SetLength(0); DownloadTo(CdnPackageUrl + "?version=" + Uri.EscapeDataString(manifest.Version), output); }
                 }
                 string hash;
                 using (var sha = SHA256.Create()) using (var input = File.OpenRead(file))
@@ -117,6 +125,16 @@ namespace StickMayhem {
                     throw new InvalidDataException("SHA-256 校验失败，安装已阻止。");
                 return file;
             } catch { try { if (File.Exists(file)) File.Delete(file); } catch { } throw; }
+        }
+        static void DownloadTo(string url, Stream output) {
+            using (var response = (HttpWebResponse)Request(url).GetResponse())
+            using (var input = response.GetResponseStream()) {
+                byte[] buffer = new byte[65536]; int count; long total = 0;
+                while ((count = input.Read(buffer, 0, buffer.Length)) > 0) {
+                    total += count; if (total > 100L * 1024 * 1024) throw new InvalidDataException("更新包超过 100 MB 限制。");
+                    output.Write(buffer, 0, count);
+                }
+            }
         }
     }
 }

@@ -56,7 +56,7 @@ namespace StickMayhem {
         }
         static bool Number(double x, double min, double max) { return Rules.Finite(x) && x >= min && x <= max; }
         public static bool Valid(MatchState s) {
-            if (s == null || String.IsNullOrEmpty(s.Session) || s.Session.Length > 64 || s.Tick < 0 || s.Map < 0 || s.Map >= Rules.Arenas.Length || s.Mode < 0 || s.Mode > 1 ||
+            if (s == null || String.IsNullOrEmpty(s.Session) || s.Session.Length > 64 || s.Tick < 0 || s.Map < 0 || s.Map >= Rules.Arenas.Length || s.Mode < 0 || s.Mode > 2 ||
                 s.Winner < -2 || s.Players == null || s.Players.Length < 2 || s.Players.Length > 6 || s.Winner >= s.Players.Length ||
                 s.Shots == null || s.Shots.Count > 170 || s.Grenades == null || s.Grenades.Count > 8 || s.Crates == null || s.Crates.Count > 4 ||
                 s.Powerups == null || s.Powerups.Count > 3 || s.Bursts == null || s.Bursts.Count > 16 || s.Shatters == null || s.Shatters.Count > 8 || s.Log == null || s.Log.Count > 60 ||
@@ -64,25 +64,27 @@ namespace StickMayhem {
             for (int i = 0; i < s.Players.Length; i++) {
                 var p = s.Players[i];
                 if (p == null || p.Seat != i || p.Lives < 0 || p.Lives > 10 || p.Starter < 0 || p.Starter >= Rules.StarterCount || p.Weapon < 0 || p.Weapon >= Rules.Weapons.Length ||
+                    p.RaceProgress < 0 || p.RaceProgress >= Rules.ArmsRaceWeapons.Length || p.RaceKills < 0 || p.RaceKills > 1 ||
+                    p.LastHitBy < -1 || p.LastHitBy >= s.Players.Length || p.LastHitTick < 0 || p.LastHitTick > s.Tick ||
                     p.Magazine < 0 || p.Magazine > 180 || p.Reserve < -1 || p.Reserve > 180 || p.Jumps < 0 || p.Jumps > 2 || p.Bombs < 0 || p.Bombs > 3 || p.BurstRemaining < 0 || p.BurstRemaining > 3 ||
-                    !Number(p.X, -200, 1200) || !Number(p.Y, -800, 740) || !Number(p.Vx, -1300, 1300) || !Number(p.Vy, -1200, 1600) ||
-                    !Number(p.AimX, -300, 1300) || !Number(p.AimY, -250, 850) || !Number(p.Impact, 0, 180) ||
+                    !Number(p.X, -200, Rules.WorldWidth(s.Map) + 200) || !Number(p.Y, -800, Rules.WorldHeight(s.Map) + 140) || !Number(p.Vx, -1300, 1300) || !Number(p.Vy, -1200, 1600) ||
+                    !Number(p.AimX, -300, Rules.WorldWidth(s.Map) + 300) || !Number(p.AimY, -250, Rules.WorldHeight(s.Map) + 250) || !Number(p.Impact, 0, Rules.MaxImpact) ||
                     !Number(p.Cooldown, 0, 1.3) || !Number(p.ReloadTime, 0, 3.1) || !Number(p.BombCooldown, 0, .8) || !Number(p.Invulnerable, 0, 2) ||
                     !Number(p.Respawn, 0, 1.2) || !Number(p.DropTime, 0, .3) || !Number(p.HitStun, 0, .2) ||
                     !Number(p.ShieldTime, 0, 6.1) || !Number(p.JetFuel, 0, 3.1) || !Number(p.InvisibleTime, 0, 5.1) || !Number(p.SpeedTime, 0, 5.1) || !Number(p.SlowTime, 0, 2.1) || !Number(p.FireRamp, 0, 1.21) ||
                     !Number(p.WeaponTime, 0, 15.1) || !Number(p.MeleeSwing, 0, .3) || !Number(p.PopupTime, 0, 5.1) || p.Popup == null || p.Popup.Length > 30) return false;
             }
-            foreach (var shot in s.Shots) if (shot == null || shot.Owner < 0 || shot.Owner >= s.Players.Length || !Number(shot.X, -160, 1160) || !Number(shot.Y, -230, 750) ||
+            foreach (var shot in s.Shots) if (shot == null || shot.Owner < 0 || shot.Owner >= s.Players.Length || !Number(shot.X, -160, Rules.WorldWidth(s.Map) + 160) || !Number(shot.Y, -230, Rules.WorldHeight(s.Map) + 150) ||
                 !Number(shot.Vx, -3000, 3000) || !Number(shot.Vy, -3000, 3000) || !Number(shot.Push, 0, 800) || !Number(shot.ImpactPush, 0, 800) || !Number(shot.Time, 0, 2.3)) return false;
-            foreach (var g in s.Grenades) if (g == null || g.Owner < 0 || g.Owner >= s.Players.Length || !Number(g.X, -200, 1200) || !Number(g.Y, -800, 800) ||
+            foreach (var g in s.Grenades) if (g == null || g.Owner < 0 || g.Owner >= s.Players.Length || !Number(g.X, -200, Rules.WorldWidth(s.Map) + 200) || !Number(g.Y, -800, Rules.WorldHeight(s.Map) + 200) ||
                 !Number(g.Vx, -1000, 1000) || !Number(g.Vy, -900, 1800) || !Number(g.Fuse, 0, 1.4)) return false;
-            foreach (var c in s.Crates) if (c == null || c.Weapon < 0 || c.Weapon >= Rules.Weapons.Length || !Number(c.X, 0, 1000) || !Number(c.Y, -40, 740) ||
+            foreach (var c in s.Crates) if (c == null || c.Weapon < 0 || c.Weapon >= Rules.Weapons.Length || !Number(c.X, 0, Rules.WorldWidth(s.Map)) || !Number(c.Y, -40, Rules.WorldHeight(s.Map) + 140) ||
                 !Number(c.Age, 0, 25) || !Number(c.Vy, 0, 120) || c.Large != Rules.LargeDropWeapon(c.Weapon)) return false;
-            foreach (var p in s.Powerups) if (p == null || p.Kind < 0 || p.Kind > 3 || !Number(p.X, 0, 1000) || !Number(p.Y, -40, 740) ||
+            foreach (var p in s.Powerups) if (p == null || p.Kind < 0 || p.Kind > 3 || !Number(p.X, 0, Rules.WorldWidth(s.Map)) || !Number(p.Y, -40, Rules.WorldHeight(s.Map) + 140) ||
                 !Number(p.Age, 0, 19) || !Number(p.Vy, 0, 110)) return false;
-            foreach (var b in s.Bursts) if (b == null || !Number(b.X, -200, 1200) || !Number(b.Y, -850, 850) || !Number(b.Radius, 0, 220) || !Number(b.Time, 0, .6)) return false;
-            foreach (var shatter in s.Shatters) if (shatter == null || shatter.Owner < 0 || shatter.Owner >= s.Players.Length || !Number(shatter.X, -200, 1200) ||
-                !Number(shatter.Y, -800, 740) || !Number(shatter.Time, 0, .86)) return false;
+            foreach (var b in s.Bursts) if (b == null || !Number(b.X, -200, Rules.WorldWidth(s.Map) + 200) || !Number(b.Y, -850, Rules.WorldHeight(s.Map) + 250) || !Number(b.Radius, 0, 220) || !Number(b.Time, 0, .6)) return false;
+            foreach (var shatter in s.Shatters) if (shatter == null || shatter.Owner < 0 || shatter.Owner >= s.Players.Length || !Number(shatter.X, -200, Rules.WorldWidth(s.Map) + 200) ||
+                !Number(shatter.Y, -800, Rules.WorldHeight(s.Map) + 140) || !Number(shatter.Time, 0, .86)) return false;
             return s.Log.All(l => l != null && l.Length < 180);
         }
     }
@@ -90,8 +92,10 @@ namespace StickMayhem {
         public event Action Connected;
         public event Action<Message> Received;
         public event Action<string> Disconnected;
+        sealed class Outbound { public string Kind, Text; }
         sealed class Link {
-            public int Id; public TcpClient Client; public BlockingCollection<string> Outgoing = new BlockingCollection<string>(90); public Timer Heartbeat;
+            public int Id; public TcpClient Client; public readonly object QueueLock = new object(); public readonly Queue<Outbound> Outgoing = new Queue<Outbound>();
+            public readonly AutoResetEvent Wake = new AutoResetEvent(false); public Timer Heartbeat; public long LastReceive = DateTime.UtcNow.Ticks;
         }
         readonly object sync = new object(); readonly List<Link> links = new List<Link>();
         TcpListener listener; int disposed, accepted; bool serverMode;
@@ -126,19 +130,38 @@ namespace StickMayhem {
         }
         void StartConnection(TcpClient client, int id) {
             if (Closed) { client.Close(); return; }
-            client.NoDelay = true; client.ReceiveTimeout = 8000; client.SendTimeout = 2000;
+            client.NoDelay = true; client.ReceiveTimeout = 15000; client.SendTimeout = 10000;
             var link = new Link { Id = id, Client = client };
             lock (sync) links.Add(link); ConnectedNow = true;
             var ready = Connected; if (ready != null) ready();
-            Run(delegate { var stream = client.GetStream(); foreach (string text in link.Outgoing.GetConsumingEnumerable()) { if (Closed) break; Wire.Write(stream, text); } });
+            Run(delegate {
+                var stream = client.GetStream();
+                while (!Closed) {
+                    Outbound next = null;
+                    lock (link.QueueLock) if (link.Outgoing.Count > 0) next = link.Outgoing.Dequeue();
+                    if (next == null) { link.Wake.WaitOne(500); continue; }
+                    Wire.Write(stream, next.Text);
+                }
+            });
             Run(delegate {
                 var stream = client.GetStream();
                 while (!Closed) {
                     var m = Rules.Serializer().Deserialize<Message>(Wire.Read(stream)); if (m == null) throw new InvalidDataException("消息无效。");
-                    if (m.Kind == "ping") continue; m.ConnectionId = link.Id; var receive = Received; if (receive != null) receive(m);
+                    Interlocked.Exchange(ref link.LastReceive, DateTime.UtcNow.Ticks);
+                    if (m.Kind == "ping") { SendTo(link.Id, new Message { Kind = "pong" }); continue; }
+                    if (m.Kind == "pong") continue;
+                    m.ConnectionId = link.Id; var receive = Received; if (receive != null) receive(m);
                 }
             });
-            link.Heartbeat = new Timer(delegate { if (!Closed) SendTo(link.Id, new Message { Kind = "ping" }); }, null, 1500, 1500);
+            link.Heartbeat = new Timer(delegate {
+                if (Closed) return;
+                if (DateTime.UtcNow.Ticks - Interlocked.Read(ref link.LastReceive) > TimeSpan.FromSeconds(12).Ticks) {
+                    var handler = Disconnected; Dispose(); if (handler != null) handler("局域网心跳超时，请检查网络或防火墙。"); return;
+                }
+                if (!SendTo(link.Id, new Message { Kind = "ping" })) {
+                    var handler = Disconnected; Dispose(); if (handler != null) handler("局域网发送队列异常，对局已安全停止。");
+                }
+            }, null, 2000, 2000);
         }
         public bool Send(Message m) {
             if (Closed) return false;
@@ -153,13 +176,23 @@ namespace StickMayhem {
         }
         bool Queue(Link link, Message m) {
             string text = Rules.Serializer().Serialize(m); if (Encoding.UTF8.GetByteCount(text) > Wire.MaxFrame) return false;
-            try { return link.Outgoing.TryAdd(text); } catch (InvalidOperationException) { return false; }
+            lock (link.QueueLock) {
+                if (Closed) return false;
+                // Inputs and full match snapshots describe current state, so stale queued copies only add latency.
+                if (m.Kind == "state" || m.Kind == "input" || m.Kind == "ping") {
+                    var keep = link.Outgoing.Where(item => item.Kind != m.Kind).ToArray();
+                    link.Outgoing.Clear(); foreach (var item in keep) link.Outgoing.Enqueue(item);
+                }
+                if (link.Outgoing.Count >= 128) return false;
+                link.Outgoing.Enqueue(new Outbound { Kind = m.Kind, Text = text });
+            }
+            link.Wake.Set(); return true;
         }
         public void Dispose() {
             if (Interlocked.Exchange(ref disposed, 1) != 0) return;
             ConnectedNow = false; if (listener != null) listener.Stop();
             Link[] closing; lock (sync) { closing = links.ToArray(); links.Clear(); }
-            foreach (var link in closing) { if (link.Heartbeat != null) link.Heartbeat.Dispose(); try { link.Outgoing.CompleteAdding(); } catch (InvalidOperationException) { } link.Client.Close(); }
+            foreach (var link in closing) { if (link.Heartbeat != null) link.Heartbeat.Dispose(); link.Wake.Set(); link.Client.Close(); link.Wake.Dispose(); }
         }
     }
 }

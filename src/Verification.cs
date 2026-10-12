@@ -27,7 +27,59 @@ namespace StickMayhem {
             return new InputFrame { Session = m.State.Session, Seq = ++seq, Jump = jump, Bomb = bomb, Drop = drop, Fire = fire, AimX = x, AimY = y };
         }
         static void Core(string folder) {
-            Check(Rules.Weapons.Length == 14 && Rules.Arenas.Length == 6, "fourteen weapons six arenas");
+            Check(Rules.Weapons.Length == 14 && Rules.Arenas.Length == 9, "fourteen weapons and nine arenas");
+            Check(Rules.ArmsRaceWeapons.Length == Rules.Weapons.Length && Rules.ArmsRaceWeapons.Distinct().Count() == Rules.Weapons.Length &&
+                Rules.ArmsRaceWeapons.Take(2).SequenceEqual(new[] { 4, 12 }) && Rules.ArmsRaceWeapons.Skip(10).Take(3).SequenceEqual(new[] { 0, 1, 2 }) && Rules.ArmsRaceWeapons[13] == 8,
+                "Arms Race starts with sniper and Kraber, puts pistols fourth through second-last, and finishes with sword");
+            var armsRace = new Match(new MatchOptions { Starter = 2, Map = 0, Lives = 3, Mode = 2 }, new MatchOptions { Starter = 1, Map = 0, Lives = 3, Mode = 2 }, 77);
+            Check(armsRace.State.Mode == 2 && armsRace.State.Players.All(f => f.Weapon == 4 && f.RaceProgress == 0 && f.Reserve == -1) && Wire.Valid(armsRace.State),
+                "Arms Race starts everyone on the sniper with endless reserve and a valid network state");
+            armsRace.State.NextCrate = armsRace.State.NextBigCrate = armsRace.State.NextPower = .001; armsRace.Step();
+            Check(armsRace.State.Crates.Count == 0 && armsRace.State.Powerups.Count == 0, "Arms Race disables weapon airdrops and all powerup drops");
+            var quotaRace = new Match(new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 2 }, new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 2 }, 79);
+            var quotaFighter = quotaRace.State.Players[0]; quotaRace.AdvanceArmsRace(quotaFighter);
+            Check(quotaFighter.RaceProgress == 0 && quotaFighter.RaceKills == 1 && quotaFighter.Weapon == 4, "first Arms Race kill keeps the current non-sword weapon");
+            quotaRace.AdvanceArmsRace(quotaFighter);
+            Check(quotaFighter.RaceProgress == 1 && quotaFighter.RaceKills == 0 && quotaFighter.Weapon == 12, "second Arms Race kill upgrades to the next weapon");
+            var infiniteRace = new Match(new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 2 }, new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 2 }, 78);
+            var infiniteFighter = infiniteRace.State.Players[0]; infiniteFighter.Invulnerable = 0; infiniteFighter.Y = Rules.WorldHeight(0) + 120;
+            infiniteRace.State.NextCrate = infiniteRace.State.NextBigCrate = infiniteRace.State.NextPower = .001; infiniteRace.Step();
+            Check(infiniteFighter.Lives == 3 && infiniteFighter.Respawns == 1 && infiniteFighter.Respawn > 0, "Arms Race fall respawns without spending a life");
+            for (int raceRespawnTick = 0; raceRespawnTick < 90 && infiniteFighter.Respawns < 1; raceRespawnTick++) infiniteRace.Step();
+            for (int raceRespawnTick = 0; raceRespawnTick < 90 && infiniteFighter.Respawn > 0; raceRespawnTick++) infiniteRace.Step();
+            infiniteFighter.Invulnerable = 0; infiniteFighter.Y = Rules.WorldHeight(0) + 120; infiniteRace.Step();
+            Check(infiniteFighter.Lives == 3 && infiniteFighter.Respawns == 2 && infiniteFighter.Respawn > 0 && !infiniteRace.State.Finished,
+                "Arms Race continues after repeated falls with infinite lives and no survivor-count victory");
+            Check(infiniteRace.State.Crates.Count == 0 && infiniteRace.State.Powerups.Count == 0, "Arms Race remains free of weapon and item drops after their timers expire");
+            var selfRace = new Match(new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 2 }, new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 2 }, 80);
+            var mistake = selfRace.State.Players[0]; var creditedRival = selfRace.State.Players[1]; mistake.X = 400; creditedRival.X = 500;
+            mistake.Invulnerable = 0; mistake.Y = Rules.WorldHeight(0) + 120; selfRace.Step();
+            Check(mistake.Respawns == 1 && mistake.Lives == 3 && creditedRival.RaceKills == 1 && creditedRival.RaceProgress == 0,
+                "unattributed Arms Race self-fall awards a kill to the nearest active opponent");
+            var racer = armsRace.State.Players[0]; var raceVictim = armsRace.State.Players[1];
+            racer.Weapon = 8; racer.RaceProgress = 12; racer.RaceKills = 1; racer.Magazine = 1; racer.Reserve = -1; racer.X = 400; racer.Y = 499; racer.Grounded = true; racer.Cooldown = 0;
+            raceVictim.X = 460; raceVictim.Y = 499; raceVictim.Grounded = true; raceVictim.Respawn = 0; raceVictim.Invulnerable = 0;
+            armsRace.Submit(0, Frame(armsRace, 0, 0, 0, true, raceVictim.X, raceVictim.Y - 25)); armsRace.Step();
+            Check(racer.RaceProgress == 13 && racer.RaceKills == 0 && racer.Weapon == 8 && racer.Reserve == -1, "second kill in the Glock slot advances to the final prison sword");
+            raceVictim.Respawn = 0; raceVictim.Invulnerable = 0; raceVictim.X = 475; raceVictim.Y = 499;
+            racer.X = 400; racer.Y = 499; racer.Grounded = true; racer.Cooldown = racer.ReloadTime = 0; racer.Magazine = 5;
+            armsRace.Submit(0, Frame(armsRace, 0, 0, 0, false, raceVictim.X, raceVictim.Y - 25)); armsRace.Step();
+            raceVictim.Respawn = 0; raceVictim.Invulnerable = 0; raceVictim.X = 475; raceVictim.Y = 499; racer.X = 400; racer.Y = 499; racer.Grounded = true;
+            armsRace.Submit(0, Frame(armsRace, 0, 0, 0, true, raceVictim.X, raceVictim.Y - 25));
+            for (int raceTick = 0; raceTick < 8 && !armsRace.State.Finished; raceTick++) armsRace.Step();
+            Check(armsRace.State.Winner == 0, "final prison-sword elimination wins Arms Race (winner=" + armsRace.State.Winner + ", progress=" + racer.RaceProgress + ", weapon=" + racer.Weapon + ", targetLives=" + raceVictim.Lives + ", respawn=" + raceVictim.Respawn + ", shots=" + armsRace.State.Shots.Count + ")");
+            var sixStartOptions = Enumerable.Range(0, 6).Select(i => new MatchOptions { Starter = 0, Map = 6, Lives = 3 }).ToArray();
+            var sixStart = new Match(sixStartOptions, 810).State;
+            Check(sixStart.Players.Select(fighter => fighter.X).Distinct().Count() == 6 && sixStart.Players.All(fighter => Rules.Arenas[6].Spawns.Contains(fighter.X)),
+                "six-player opening shuffles six distinct spawn positions");
+            var respawnMatch = new Match(new MatchOptions { Map = 6, Lives = 3 }, new MatchOptions { Map = 6, Lives = 3 }, 811);
+            var respawning = respawnMatch.State.Players[0]; respawning.X = Rules.WorldWidth(6) + 120;
+            respawnMatch.Step();
+            Check(respawning.Lives == 2 && respawning.Respawn > 0, "falling player enters respawn state");
+            for (int i = 0; i < 80 && respawning.Respawn > 0; i++) respawnMatch.Step();
+            Check(respawning.Respawns == 1 && Rules.Arenas[6].Spawns.Contains(respawning.X) &&
+                Math.Abs(respawning.X - respawnMatch.State.Players[1].X) >= 60,
+                "respawn randomly selects a free one of the six spawn positions");
             var m = New(0, 0); var p = m.State.Players[0];
             Check(Wire.Valid(m.State), "initial snapshot");
             Check(Rules.StarterCount == 3 && Rules.Weapons.Take(3).Select(w => w.Name).SequenceEqual(new[] { "左轮", "USP", "格洛克" }), "three pistol starter choices");
@@ -42,6 +94,16 @@ namespace StickMayhem {
             var skyMatch = new Match(new MatchOptions { Starter = 0, Map = 0, Lives = 3, Mode = 1 }, new MatchOptions { Starter = 2, Map = 0, Lives = 3 }, 43);
             Check(skyMatch.State.Mode == 1 && skyMatch.State.Players.All(f => f.Weapon == 12 && f.Magazine == 5 && f.Reserve == -1) && Math.Abs(Rules.GravityFor(skyMatch.State.Mode) - Rules.Gravity * .5) < .01,
                 "Sky Sniper mode starts both players with an infinite-ammo Kraber and halves gravity");
+            var landingMatch = new Match(new MatchOptions { Starter = 0, Map = 6, Lives = 3, Mode = 1 }, new MatchOptions { Starter = 0, Map = 6, Lives = 3, Mode = 1 }, 813);
+            var flyer = landingMatch.State.Players[1]; var skyTarget = landingMatch.State.Players[0];
+            flyer.X = 900; flyer.Y = 510; flyer.Vx = flyer.Vy = 0; flyer.Grounded = false; flyer.Jumps = 2; flyer.JetOwned = true; flyer.JetFuel = 3;
+            skyTarget.X = 350; skyTarget.Y = 140; skyTarget.Invulnerable = 1000; skyTarget.Grounded = true;
+            var landingBot = new Bot(814); bool botLandedAfterRecovery = false;
+            for (int flightTick = 0; flightTick < 360; flightTick++) {
+                landingMatch.Submit(1, landingBot.Think(landingMatch.State, 1)); landingMatch.Step();
+                if (flightTick > 110 && flyer.Grounded) botLandedAfterRecovery = true;
+            }
+            Check(botLandedAfterRecovery, "Sky Sniper practice bot cancels upward pursuit after prolonged flight and returns to a lower platform");
             skyMatch.State.NextCrate = skyMatch.State.NextBigCrate = skyMatch.State.NextPower = .001;
             skyMatch.Step();
             Check(skyMatch.State.Crates.Count == 0 && skyMatch.State.Powerups.Count == 1,
@@ -69,8 +131,8 @@ namespace StickMayhem {
                 "Focus SMG keeps its blue 45-round magazine and increasing rate of fire");
             Check(Rules.Weapons[12].Name == "克莱博" && Rules.Weapons[12].DirectKill && Rules.Weapons[12].BoltAction && Rules.Weapons[12].Magazine == 5 && Rules.Weapons[12].Reload == 1,
                 "Kraber has five shots, one-second bolt reload, instant shattering hits and heavy recoil");
-            Check(Rules.Weapons[13].Name == "电能冲锋枪" && Rules.Weapons[13].Energy && Rules.Weapons[13].SlowTarget && Rules.Weapons[13].Magazine == 30 && Rules.Weapons[13].Ammo == 30 && Rules.Weapons[13].Reload == 0 && Rules.Weapons[13].Push == Rules.Weapons[2].Push && Rules.Weapons[13].ImpactPush == Rules.Weapons[10].Push,
-                "ordinary-drop electric SMG uses blue bullets, Glock knockback, SMG impact gain and one thirty-round supply");
+            Check(Rules.Weapons[13].Name == "电能冲锋枪" && Rules.Weapons[13].Energy && Rules.Weapons[13].SlowTarget && Rules.Weapons[13].Magazine == 30 && Rules.Weapons[13].Ammo == 30 && Rules.Weapons[13].Reload == 0 && Rules.Weapons[13].Push == Rules.Weapons[2].Push && Rules.Weapons[13].ImpactPush < Rules.Weapons[10].Push,
+                "ordinary-drop electric SMG uses blue bullets, Glock knockback, slightly lower impact gain and one thirty-round supply");
             foreach (int index in new[] { 9, 10 }) {
                 m = New(index, 0); p = m.State.Players[0]; p.X = 500; p.Magazine = Rules.Weapons[index].Magazine; p.Reserve = 0;
                 for (int shotTick = 0; shotTick < 1200 && p.Weapon == index; shotTick++) {
@@ -81,6 +143,7 @@ namespace StickMayhem {
                     Rules.Weapons[index].Name + " spends its only thirty-round supply then switches to starter pistol");
             }
             m = New(9, 0); p = m.State.Players[0]; p.X = 500; p.Y = 499; p.Grounded = true;
+            m.State.Players[1].X = 900; m.State.Players[1].Y = 120;
             m.Submit(0, Frame(m, 0, 0, 0, true, p.X + 100, p.Y - 25)); m.Step();
             Check(m.State.Shots.Count == 1 && p.BurstRemaining == 2, "one trigger starts a three-round assault-rifle burst");
             m.Submit(0, Frame(m, 0, 0, 0, false, p.X + 100, p.Y - 25));
@@ -100,13 +163,30 @@ namespace StickMayhem {
             Check(p.Cooldown < slowStart && p.FireRamp >= 1.19, "holding the energy SMG spins up to a higher fire rate");
             m = New(13, 0); p = m.State.Players[0]; var energyTarget = m.State.Players[1]; p.X = 450; energyTarget.X = 490; p.Y = energyTarget.Y = 499;
             m.Submit(0, Frame(m, 0, 0, 0, true, energyTarget.X, energyTarget.Y - 25)); m.Step();
-            Check(Math.Abs(energyTarget.Impact - Rules.Weapons[10].Push / 18.0) < .01 && Math.Abs(energyTarget.Vx - Rules.Weapons[2].Push) < 1 && Math.Abs(energyTarget.SlowTime - 2) < .01,
-                "electric round matches SMG impact gain and Glock knockback while applying a two-second slow");
+            Check(Math.Abs(energyTarget.Impact - Rules.Weapons[13].ImpactPush / 18.0) < .01 && Math.Abs(energyTarget.Vx - Rules.Weapons[2].Push) < 1 && Math.Abs(energyTarget.SlowTime - 2) < .01,
+                "electric round applies slightly lower impact gain, Glock knockback and two-second speed/jump debuff");
             double slowedStart = energyTarget.X; energyTarget.Vx = energyTarget.Vy = 0; energyTarget.Grounded = true;
+            m.Submit(0, Frame(m, 0, 0, 0, false, energyTarget.X + 200, energyTarget.Y));
             for (int i = 0; i < 30; i++) { var right = Frame(m, 0, 0, 0, false, energyTarget.X + 100, energyTarget.Y); right.Right = true; m.Submit(1, right); m.Step(); }
             var control = New(0, 0); var controlEnemy = control.State.Players[1]; controlEnemy.X = 490; controlEnemy.Y = 499; controlEnemy.Grounded = true;
             for (int i = 0; i < 30; i++) { var right = Frame(control, 0, 0, 0, false, 600, 499); right.Right = true; control.Submit(1, right); control.Step(); }
-            Check(energyTarget.X - slowedStart < (controlEnemy.X - 490) * .6 && energyTarget.SlowTime > 1.4, "electric hits cut movement speed by fifty percent for two seconds");
+            Check(energyTarget.X - slowedStart < (controlEnemy.X - 490) * .4 && energyTarget.SlowTime > 1.4, "electric hits reduce movement speed by seventy percent for two seconds");
+            var jumpSlow = New(0, 0); var jumpSlowPlayer = jumpSlow.State.Players[0]; jumpSlowPlayer.SlowTime = 2; jumpSlowPlayer.Grounded = true;
+            jumpSlow.Submit(0, Frame(jumpSlow, 1, 0, 0, false, 750, 300)); jumpSlow.Step(); double slowedJumpVelocity = jumpSlowPlayer.Vy;
+            var jumpControl = New(0, 0); var jumpControlPlayer = jumpControl.State.Players[0]; jumpControlPlayer.Grounded = true;
+            jumpControl.Submit(0, Frame(jumpControl, 1, 0, 0, false, 750, 300)); jumpControl.Step();
+            Check(Math.Abs(slowedJumpVelocity) < Math.Abs(jumpControlPlayer.Vy) * .4, "electric debuff reduces jump strength by seventy percent");
+            var capTest = New(0, 0); var capTarget = capTest.State.Players[1]; capTarget.Impact = 249; capTarget.Invulnerable = 0;
+            capTest.Knock(capTarget, 1, 0, 100, 1000, 0);
+            Check(capTarget.Impact == 250 && Wire.Valid(capTest.State), "impact gain clamps at 250 percent and remains valid in LAN snapshots");
+            var probabilityTest = New(0, 0); var probabilityTarget = probabilityTest.State.Players[1]; int fatalRolls = 0;
+            for (int impactTrial = 0; impactTrial < 200; impactTrial++) {
+                probabilityTarget.Impact = 250; probabilityTarget.Lives = 3; probabilityTarget.Respawn = 0; probabilityTarget.Invulnerable = 0; probabilityTarget.ShieldTime = 0;
+                int deathsBefore = probabilityTarget.Respawns;
+                probabilityTest.Knock(probabilityTarget, 1, 0, 100, 100, 0);
+                if (probabilityTarget.Respawns > deathsBefore) fatalRolls++;
+            }
+            Check(fatalRolls >= 20 && fatalRolls <= 60, "at max impact, subsequent hits trigger instant death at a 20 percent rate (" + fatalRolls + "/200)");
             m = New(1, 0); p = m.State.Players[0]; p.SpeedTime = 5;
             m.Submit(0, Frame(m, 0, 0, 0, true, p.X + 300, p.Y - 25)); m.Step();
             Check(Math.Abs(p.Cooldown - Rules.Weapons[1].Interval / 2) < .01, "Fire Up doubles firing rate");
@@ -122,9 +202,10 @@ namespace StickMayhem {
             Check(Rules.Weapons[3].Push > 100 && Rules.Weapons[3].Pellets > 5, "shotgun impact and pellet count increased");
             var normalPool = Enumerable.Range(0, 300).Select(i => m.RandomAirdropWeapon()).ToArray();
             Check(normalPool.All(w => w >= Rules.StarterCount && !Rules.LargeDropWeapon(w)) && normalPool.Contains(9) && normalPool.Contains(10) && normalPool.Contains(13), "normal airdrops include assault rifle, SMG and electric SMG while excluding starter and special weapons");
-            Check(Rules.Arenas.All(a => a.Spawns.Length == 6 && a.Spawns.All(x => a.Platforms.Any(t => x >= t.X && x <= t.X + t.Width))), "all six maps provide six valid player spawn points");
-            m = new Match(Enumerable.Range(0, 6).Select(i => new MatchOptions { Map = 4, Starter = i % 3, Lives = 3 }).ToArray(), 16);
-            Check(m.State.Players.Length == 6 && Wire.Valid(m.State) && m.State.Players.Select(fighter => fighter.Seat).SequenceEqual(Enumerable.Range(0, 6)), "six numbered players enter a large map and produce a valid network snapshot");
+            Check(Rules.Arenas.All(a => a.Spawns.Length == 6 && a.Spawns.All(x => a.Platforms.Any(t => x >= t.X && x <= t.X + t.Width))), "all nine maps provide six valid player spawn points");
+            Check(Rules.Arenas.Skip(6).All(a => a.Width * a.Height >= 3 * Rules.ViewWidth * Rules.ViewHeight), "three additional maps each provide at least three times the original playable area");
+            m = new Match(Enumerable.Range(0, 6).Select(i => new MatchOptions { Map = 6, Starter = i % 3, Lives = 3 }).ToArray(), 16);
+            Check(m.State.Players.Length == 6 && Wire.Valid(m.State) && m.State.Players.Select(fighter => fighter.Seat).SequenceEqual(Enumerable.Range(0, 6)), "six numbered players enter an expanded map and produce a valid network snapshot");
             var largePool = Enumerable.Range(0, 300).Select(i => m.RandomBigAirdropWeapon()).ToArray();
             Check(largePool.All(Rules.LargeDropWeapon) && new[] { 6, 8, 11, 12 }.All(largePool.Contains), "large airdrops include Gatling, sword, electric SMG and Kraber only");
             m = New(0, 0); p = m.State.Players[0];
@@ -416,6 +497,10 @@ namespace StickMayhem {
                 var sixth = guests.Single(g => g.Seat == 5); double before = host.Current.Players[5].X;
                 sixth.Inject(new InputFrame { Left = true, AimX = 250, AimY = 150 });
                 Pump(() => host.Current.Players[5].X < before - 20 && sixth.Current.Players[5].X < before - 15, 4000, "number six input routes to its authoritative fighter");
+                int stableTick = host.Current.Tick;
+                Pump(() => host.Current.Tick >= stableTick + 360 && guests.All(g => g.IsPlaying && g.Current != null && g.Current.Tick > stableTick + 300), 12000,
+                    "six-player LAN remains synchronized during sustained high-rate state traffic");
+                Check(host.IsPlaying && guests.All(g => g.IsPlaying), "coalesced LAN snapshots prevent transient queue buildup from dropping peers");
             } finally {
                 host.Leave(); foreach (var guest in guests) guest.Leave(); host.Close(); foreach (var guest in guests) guest.Close();
             }
@@ -462,6 +547,34 @@ namespace StickMayhem {
                 string name = theme + (small ? "-minimal" : "-normal"); Walk(w, w); Render(w, Path.Combine(folder, name + ".png"));
                 foreach (string page in new[] { "lobby", "settings", "help", "records" }) { w.ShowPage(page); w.UpdateLayout(); Walk(w, w); Render(w, Path.Combine(folder, name + "-" + page + ".png")); }
             }
+            var largeMap = new Match(new MatchOptions { Map = 6, Lives = 3 }, new MatchOptions { Map = 6, Lives = 3 }, 26).State;
+            largeMap.Players[0].X = 600; largeMap.Players[1].X = 1200; largeMap.Players[0].Y = largeMap.Players[1].Y = 900;
+            w.Field.State = largeMap; w.Field.Seat = 0; w.Field.UpdateLayout();
+            Point largePoint = new Point(900, 700); Point largeScreen = w.Field.ToScreen(largePoint); Point largeRoundTrip = w.Field.ToWorld(largeScreen);
+            Check(largeScreen.X >= 0 && largeScreen.X <= w.Field.ActualWidth && Math.Abs(largeRoundTrip.X - largePoint.X) < .001 && Math.Abs(largeRoundTrip.Y - largePoint.Y) < .001,
+                "expanded-map camera pans and preserves mouse aiming coordinates");
+            var cameraDeath = new Match(new MatchOptions { Map = 6, Lives = 3 }, new MatchOptions { Map = 6, Lives = 3 }, 27).State;
+            cameraDeath.Players[0].X = 150; cameraDeath.Players[1].X = 1650; cameraDeath.Players[0].Y = cameraDeath.Players[1].Y = 900;
+            w.Field.State = cameraDeath; double beforeDeathZoom = w.Field.CurrentZoom;
+            cameraDeath.Players[1].Lives--; cameraDeath.Players[1].Respawns++; cameraDeath.Players[1].Respawn = .5;
+            cameraDeath.Players[0].X = 800; cameraDeath.Tick += 30;
+            Check(Math.Abs(w.Field.CurrentZoom - beforeDeathZoom) < .001, "large-map zoom holds steady throughout an opponent respawn countdown");
+            cameraDeath.Players[1].Respawn = 0; cameraDeath.Players[1].X = 820; cameraDeath.Tick += 20;
+            double zoomAfterRevive = w.Field.CurrentZoom;
+            cameraDeath.Tick += 180; double settledReviveZoom = w.Field.CurrentZoom;
+            Check(zoomAfterRevive > beforeDeathZoom && zoomAfterRevive < 1 && settledReviveZoom > .98,
+                "large-map zoom eases toward new player spacing after respawn");
+            var spreadPlayers = new Match(Enumerable.Range(0, 6).Select(i => new MatchOptions { Map = 6, Lives = 3 }).ToArray(), 812).State;
+            w.Field.State = spreadPlayers; w.Field.UpdateLayout();
+            var spreadScreens = spreadPlayers.Players.Select(p => w.Field.ToScreen(new Point(p.X, p.Y - 25))).ToArray();
+            Check(spreadScreens.All(p => p.X >= 0 && p.X <= w.Field.ActualWidth && p.Y >= 0 && p.Y <= w.Field.ActualHeight),
+                "large-map opening zoom keeps all six players visible");
+            double farSpreadZoom = w.Field.CurrentZoom;
+            for (int i = 0; i < spreadPlayers.Players.Length; i++) spreadPlayers.Players[i].X = 850 + i * 20;
+            spreadPlayers.Tick += 120;
+            w.Field.InvalidateVisual();
+            Check(w.Field.CurrentZoom > farSpreadZoom && w.Field.CurrentZoom > .95, "large-map camera zooms back in as players converge");
+            w.Current = largeMap; w.ShowPage("live"); w.Field.State = largeMap; w.Field.Seat = 0; w.Field.Ready = true; Render(w, Path.Combine(folder, "large-map-camera.png"));
             w.Configure("codex", false, "dark"); var popup = Fixture(); w.SetPreview(popup);
             Render(w, Path.Combine(folder, "pickup-01-visible.png")); popup.Players[0].PopupTime = .3; Render(w, Path.Combine(folder, "pickup-02-fading.png"));
             popup.Players[0].PopupTime = 0; Render(w, Path.Combine(folder, "pickup-03-gone.png"));
@@ -485,22 +598,25 @@ namespace StickMayhem {
             Render(w, Path.Combine(folder, "final-stand.png"));
             var offscreen = Fixture(); offscreen.Players[0].X = 1080; offscreen.Players[0].Y = 700; offscreen.Players[1].X = -70; offscreen.Players[1].Y = 250;
             w.SetPreview(offscreen); w.Field.State = offscreen; w.Field.Seat = 0; Render(w, Path.Combine(folder, "offscreen-arrows.png"));
-            Check(UpdateService.CurrentVersion == "1.6.7", "application release version");
-            Check(UpdateService.IsNewer("1.6.7", "1.6.6") && !UpdateService.IsNewer("1.6.6", "1.6.7"), "semantic update ordering");
-            var testManifest = UpdateService.ParseManifest("{\"Version\":\"1.6.7\",\"PackageUrl\":\"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
-            Check(testManifest.Version == "1.6.7", "trusted update manifest parsing");
+            Check(UpdateService.CurrentVersion == "1.7.5", "application release version");
+            Check(UpdateService.IsNewer("1.7.5", "1.7.4") && !UpdateService.IsNewer("1.7.4", "1.7.5"), "semantic update ordering");
+            var testManifest = UpdateService.ParseManifest("{\"Version\":\"1.7.5\",\"PackageUrl\":\"https://raw.githubusercontent.com/EM-py/Chaos-gun-fight/main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
+            Check(testManifest.Version == "1.7.5", "trusted update manifest parsing");
+            var cdnManifest = UpdateService.ParseManifest("{\"Version\":\"1.7.5\",\"PackageUrl\":\"https://cdn.jsdelivr.net/gh/EM-py/Chaos-gun-fight@main/StickMayhem-share.zip\",\"Sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Notes\":\"test\"}");
+            Check(cdnManifest.PackageUrl.Contains("cdn.jsdelivr.net"), "trusted CDN update manifest parsing");
             Check(w.UpdatePagesReady, "changelog and updater pages constructed");
             w.ShowPage("changelog"); Render(w, Path.Combine(folder, "changelog.png"));
             w.ShowPage("updater"); Render(w, Path.Combine(folder, "version-update.png"));
             File.WriteAllText(Path.Combine(folder, "verification.json"), Rules.Serializer().Serialize(new {
-                Passed = true, Assertions = checks, Version = UpdateService.CurrentVersion, ChangelogUi = true, GitHubUpdateManifest = true, Sha256VerifiedUpdatePackage = true, SafeRestartUpdater = true, Weapons = 14, PistolStarters = 3, StarterPistolsHoldToFire = true, NormalDropsIncludeElectricSMGAndApplyTwoSecondSlow = true, LargeDropsIncludeFocusSMGAndKraber = true, KnockbackAndImpactGainIndependentlyConfigured = true, FocusSMG45RoundSpinUpBlueBullets = true, KraberAmmoOverhead = true, KraberFiveRoundOneSecondBoltInstantKillAndBackblast = true, SkySniperKraberInfiniteAmmo = true, SkySniperNoWeaponDrops = true, SkySniperPowerupsRemain = true, LargeDropWeaponsCannotBeReplaced = true, SwordPickupGrantsFiveSecondInvisibility = true, PracticeBotUsesSwordMeleeRange = true, PracticeBotAvoidsKraberRecoilFalls = true, PracticeBotBlindFiresWithoutInvisibleCoordinates = true, RocketBlastBoostAndVisualEffect = true, SpeedBuffDoublesMovementAndFireRateWithWhiteCountdown = true, RevolverAndThrownBombBoosted = true, Maps = 6, MouseAiming = true, DoubleJump = true, ParachuteCrates = true,
+                Passed = true, Assertions = checks, Version = UpdateService.CurrentVersion, ChangelogUi = true, GitHubUpdateManifest = true, CdnUpdateFallback = true, Sha256VerifiedUpdatePackage = true, SafeRestartUpdater = true, Weapons = 14, ArmsRaceMode = true, ArmsRaceAllWeaponsInOrder = true, ArmsRaceStartsWithSniperAndKraber = true, ArmsRacePistolsFourthThroughSecondLast = true, ArmsRaceEndsWithPrisonSword = true, ArmsRaceTwoKillsPerNonSwordWeapon = true, ArmsRaceSelfDeathCreditsNearestRival = true, ArmsRaceInfiniteLives = true, ArmsRaceNoWeaponAirdrops = true, ArmsRaceNoPowerupDrops = true, ArmsRaceUnlimitedAmmo = true, ImpactCap250 = true, MaxImpactHitInstantDeathChance20Percent = true, ElectricSlightlyLowerImpactDamage = true, ElectricSlowsMoveAndJump70Percent = true, PistolStarters = 3, StarterPistolsHoldToFire = true, NormalDropsIncludeElectricSMGAndApplyTwoSecondSlow = true, LargeDropsIncludeFocusSMGAndKraber = true, KnockbackAndImpactGainIndependentlyConfigured = true, FocusSMG45RoundSpinUpBlueBullets = true, KraberAmmoOverhead = true, KraberFiveRoundOneSecondBoltInstantKillAndBackblast = true, SkySniperKraberInfiniteAmmo = true, SkySniperNoWeaponDrops = true, SkySniperPowerupsRemain = true, LargeDropWeaponsCannotBeReplaced = true, SwordPickupGrantsFiveSecondInvisibility = true, PracticeBotUsesSwordMeleeRange = true, PracticeBotAvoidsKraberRecoilFalls = true, PracticeBotBlindFiresWithoutInvisibleCoordinates = true, SkySniperBotLandingRecovery = true, RocketBlastBoostAndVisualEffect = true, SpeedBuffDoublesMovementAndFireRateWithWhiteCountdown = true, RevolverAndThrownBombBoosted = true, Maps = 9, LargeMapsThreeTimesArea = true, MouseAiming = true, CameraFollowAndWorldAim = true, CameraHoldsZoomDuringRespawn = true, CameraEasesAfterRespawn = true, DoubleJump = true, ParachuteCrates = true, LANStateCoalescing = true, LANHeartbeatTimeout = true,
                 MagazineReloads = true, ReloadProgressArc = true, BotPistolReloads = true, GrenadeLauncherFallback = true, ShotgunBoostedImpact = true, ShieldAndRocketFlight = true, JetFuel = true, InvisibilityBothViews = true, Invisibility = true, GrenadeLauncher = true, Gatling60And15SecondFatal = true, PrisonSwordInstantKill = true, ShatterAnimation = true, FinalStandPopup = true,
                 ChineseFloatingFadingPickup = true, CustomStarter = true, TcpTwoWpfPeers = true, AuthoritativePhysics = true,
-                HeadImpactPercent = true, OffscreenArrows = true, DisconnectStops = true, ActualWpfRenders = true, PhysicalTwoComputerTest = false, PhysicalMouseTest = false
+                HeadImpactPercent = true, OffscreenArrows = true, DisconnectStops = true, DynamicLargeMapZoom = true, SixDistinctRandomOpeningSpawns = true, RandomFreeRespawnAmongSix = true,
+                ActualWpfRenders = true, PhysicalTwoComputerTest = false, PhysicalMouseTest = false
             }));
             File.WriteAllText(Path.Combine(folder, "verification.txt"), "PASS: " + checks + " assertions.\r\n" +
-                "Practice AI sword melee approach, Kraber recoil-safe movement, and blind probing fire against invisible players; twelve full AI battles across all six maps; pistol reloads and automatic fire; Focus SMG spin-up; Kraber cycle/backblast; weapon and powerup rules.\r\n" +
-                "Actual TCP loopback WPF multiplayer: six peers and numbered seats, synchronized snapshots/input, Gatling and sword actions, new speed pickup and Kraber large-drop weapon, rocket flight, invisibility, version rejection and disconnect.\r\n" +
+                "Practice AI sword melee approach, Kraber recoil-safe movement, blind probing fire against invisible players, and Sky Sniper recovery to lower platforms; camera zoom holds during respawn and eases after revival; eighteen full AI battles across all nine maps; pistol reloads and automatic fire; Focus SMG spin-up; Kraber cycle/backblast; weapon and powerup rules.\r\n" +
+                "Actual TCP loopback WPF multiplayer: six peers and numbered seats, sustained snapshot/input traffic, Gatling and sword actions, new speed pickup and Kraber large-drop weapon, rocket flight, invisibility, version rejection and disconnect.\r\n" +
                 "Actual WPF renders at 96 DPI, three themes and two fixed sizes, popup visible/fading/gone frames, reload progress arc, shatter animation, overhead impact percent, offscreen direction arrows, collapsible changelog, and GitHub update page.\r\n" +
                 "Not tested on two physical computers or through physical mouse/keyboard automation. Preferences and clipboard untouched.\r\n");
         }

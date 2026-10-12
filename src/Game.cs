@@ -14,11 +14,14 @@ namespace StickMayhem {
         public bool Rocket, Automatic, Explosive, Melee, Energy, DirectKill, BoltAction, SlowTarget;
     }
     public sealed class Platform { public double X, Y, Width; }
-    public sealed class Arena { public string Name; public Platform[] Platforms; public double[] Spawns; }
+    public sealed class Arena { public string Name; public double Width, Height; public Platform[] Platforms; public double[] Spawns; }
     public static class Rules {
-        public const string Version = "StickMayhem/1.6.7";
-        public const double Dt = 1.0 / 60, Width = 1000, Height = 600, Gravity = 1450;
+        public const string Version = "StickMayhem/1.7.5";
+        public const double Dt = 1.0 / 60, ViewWidth = 1000, ViewHeight = 600, Width = 1000, Height = 600, Gravity = 1450;
+        public static double WorldWidth(int map) { return Arenas[map].Width; }
+        public static double WorldHeight(int map) { return Arenas[map].Height; }
         public const int StarterCount = 3;
+        public const double MaxImpact = 250, ImpactFatalChance = .20, ElectricSlowFactor = .30;
         public static bool LargeDropWeapon(int weapon) { return weapon == 6 || weapon == 8 || weapon == 11 || weapon == 12; }
         public static readonly Weapon[] Weapons = {
             new Weapon { Name = "左轮", Interval = .52, Speed = 1420, Push = 420, Pellets = 1, Spread = 0, Magazine = 6, Ammo = 18, Reload = 3, Automatic = true },
@@ -34,22 +37,29 @@ namespace StickMayhem {
             ,new Weapon { Name = "冲锋枪", Interval = .095, Speed = 1160, Push = 185, Pellets = 1, Spread = .065, Magazine = 30, Ammo = 30, Automatic = true, Recoil = 1 }
             ,new Weapon { Name = "专注冲锋枪", Pickup = "专注冲锋枪", Interval = .28, MinInterval = .075, RampDuration = 1.2, Speed = 1280, Push = 150, Pellets = 1, Spread = .055, Magazine = 45, Ammo = 45, Automatic = true, Energy = true, Recoil = 1 }
             ,new Weapon { Name = "克莱博", Pickup = "克莱博", Interval = .55, Speed = 2600, Push = 0, Pellets = 1, Spread = 0, Magazine = 5, Ammo = 5, Reload = 1, BoltAction = true, DirectKill = true, Recoil = 4 }
-            ,new Weapon { Name = "电能冲锋枪", Pickup = "电能冲锋枪", Interval = .12, Speed = 1280, Push = 92, ImpactPush = 185, Pellets = 1, Spread = .05, Magazine = 30, Ammo = 30, Reload = 0, Automatic = true, Energy = true, SlowTarget = true, Recoil = 0 }
+            ,new Weapon { Name = "电能冲锋枪", Pickup = "电能冲锋枪", Interval = .12, Speed = 1280, Push = 92, ImpactPush = 175, Pellets = 1, Spread = .05, Magazine = 30, Ammo = 30, Reload = 0, Automatic = true, Energy = true, SlowTarget = true, Recoil = 0 }
         };
+        public static readonly int[] ArmsRaceWeapons = { 4, 12, 3, 5, 7, 9, 10, 13, 11, 6, 0, 1, 2, 8 };
         public static double GravityFor(int mode) { return Gravity * (mode == 1 ? .5 : 1); }
         public static readonly Arena[] Arenas = {
-            new Arena { Name = "分层平台", Spawns = new[] { 150.0, 850, 290, 710, 440, 560 }, Platforms = new[] {
+            new Arena { Name = "分层平台", Width = 1000, Height = 600, Spawns = new[] { 150.0, 850, 290, 710, 440, 560 }, Platforms = new[] {
                 P(110, 500, 780), P(130, 370, 240), P(630, 370, 240), P(360, 240, 280), P(180, 135, 150), P(670, 135, 150) } },
-            new Arena { Name = "双桥断层", Spawns = new[] { 150.0, 850, 250, 750, 350, 650 }, Platforms = new[] {
+            new Arena { Name = "双桥断层", Width = 1000, Height = 600, Spawns = new[] { 150.0, 850, 250, 750, 350, 650 }, Platforms = new[] {
                 P(70, 500, 350), P(580, 500, 350), P(310, 375, 380), P(60, 245, 245), P(695, 245, 245), P(355, 135, 290) } },
-            new Arena { Name = "交错阶梯", Spawns = new[] { 160.0, 840, 300, 700, 440, 560 }, Platforms = new[] {
+            new Arena { Name = "交错阶梯", Width = 1000, Height = 600, Spawns = new[] { 160.0, 840, 300, 700, 440, 560 }, Platforms = new[] {
                 P(130, 520, 740), P(65, 410, 190), P(745, 410, 190), P(270, 300, 180), P(550, 300, 180), P(365, 165, 270) } },
-            new Arena { Name = "风车中庭", Spawns = new[] { 120.0, 880, 260, 740, 430, 570 }, Platforms = new[] {
+            new Arena { Name = "风车中庭", Width = 1000, Height = 600, Spawns = new[] { 120.0, 880, 260, 740, 430, 570 }, Platforms = new[] {
                 P(80, 510, 840), P(35, 385, 150), P(815, 385, 150), P(360, 385, 280), P(140, 260, 230), P(630, 260, 230), P(350, 145, 300) } },
-            new Arena { Name = "断桥高台", Spawns = new[] { 120.0, 880, 260, 740, 430, 570 }, Platforms = new[] {
+            new Arena { Name = "断桥高台", Width = 1000, Height = 600, Spawns = new[] { 120.0, 880, 260, 740, 430, 570 }, Platforms = new[] {
                 P(75, 500, 850), P(75, 370, 300), P(625, 370, 300), P(350, 250, 300), P(180, 135, 180), P(640, 135, 180) } },
-            new Arena { Name = "环形回廊", Spawns = new[] { 120.0, 880, 260, 740, 430, 570 }, Platforms = new[] {
-                P(80, 510, 840), P(120, 410, 220), P(660, 410, 220), P(285, 315, 430), P(85, 215, 220), P(695, 215, 220), P(370, 115, 260) } }
+            new Arena { Name = "环形回廊", Width = 1000, Height = 600, Spawns = new[] { 120.0, 880, 260, 740, 430, 570 }, Platforms = new[] {
+                P(80, 510, 840), P(120, 410, 220), P(660, 410, 220), P(285, 315, 430), P(85, 215, 220), P(695, 215, 220), P(370, 115, 260) } },
+            new Arena { Name = "巨型交叉层", Width = 1800, Height = 1000, Spawns = new[] { 150.0, 1650, 450, 1350, 750, 1050 }, Platforms = new[] {
+                P(0, 900, 1800), P(100, 700, 600), P(1100, 700, 600), P(550, 550, 700), P(100, 400, 500), P(1200, 400, 500), P(650, 250, 500), P(250, 120, 400), P(1150, 120, 400) } },
+            new Arena { Name = "天井迷宫", Width = 1800, Height = 1000, Spawns = new[] { 180.0, 1620, 500, 1300, 800, 1000 }, Platforms = new[] {
+                P(0, 900, 1800), P(0, 720, 560), P(1240, 720, 560), P(400, 570, 1000), P(0, 420, 620), P(1180, 420, 620), P(500, 270, 800), P(150, 130, 500), P(1150, 130, 500) } },
+            new Arena { Name = "浮岛群", Width = 1800, Height = 1000, Spawns = new[] { 130.0, 1670, 430, 1370, 730, 1070 }, Platforms = new[] {
+                P(250, 900, 1300), P(0, 750, 350), P(1450, 750, 350), P(450, 620, 900), P(100, 470, 550), P(1150, 470, 550), P(550, 320, 700), P(150, 170, 450), P(1200, 170, 450), P(750, 80, 300) } }
         };
         static Platform P(double x, double y, double width) { return new Platform { X = x, Y = y, Width = width }; }
         public static JavaScriptSerializer Serializer() { return new JavaScriptSerializer { MaxJsonLength = 196608, RecursionLimit = 25 }; }
@@ -58,7 +68,7 @@ namespace StickMayhem {
         public static double Clamp(double v, double min, double max) { return Math.Max(min, Math.Min(max, v)); }
         public static string Fingerprint() {
             using (var sha = SHA256.Create()) return Convert.ToBase64String(sha.ComputeHash(Encoding.UTF8.GetBytes(
-                Version + "/60Hz/mouse/doublejump/reload/powerups/knockback/invisibility/specialdrops/melee/shatter/" + Serializer().Serialize(Weapons) + Serializer().Serialize(Arenas))));
+                Version + "/60Hz/mouse/doublejump/reload/powerups/knockback/invisibility/specialdrops/melee/shatter/" + Serializer().Serialize(Weapons) + Serializer().Serialize(ArmsRaceWeapons) + Serializer().Serialize(Arenas))));
         }
     }
     public sealed class MatchOptions { public int Map, Lives = 5, Starter, Mode; }
@@ -69,7 +79,7 @@ namespace StickMayhem {
         public double AimX = 500, AimY = 250;
     }
     public sealed class Fighter {
-        public int Seat, Lives, Starter, Weapon, Magazine, Reserve, Jumps, Bombs = 3, Respawns, BurstRemaining;
+        public int Seat, Lives, Starter, Weapon, RaceProgress, RaceKills, Magazine, Reserve, Jumps, Bombs = 3, Respawns, BurstRemaining, LastHitBy = -1, LastHitTick;
         public double X, Y, Vx, Vy, AimX, AimY, Impact, Cooldown, ReloadTime, BombCooldown, Invulnerable, Respawn, DropTime, HitStun;
         public double ShieldTime, JetFuel, InvisibleTime, WeaponTime, MeleeSwing, SpeedTime, FireRamp, SlowTime;
         public bool Grounded, JetOwned;
@@ -129,14 +139,16 @@ namespace StickMayhem {
             random = new Random(seed);
             inputs = new InputFrame[options.Length]; jump = new int[options.Length]; bomb = new int[options.Length]; drop = new int[options.Length]; inputTicks = new int[options.Length]; fireHeld = new bool[options.Length];
             State = new MatchState { Session = Guid.NewGuid().ToString("N"), Map = options[0].Map, Mode = options[0].Mode, Players = new Fighter[options.Length] };
+            var spawnSlots = Enumerable.Range(0, Rules.Arenas[State.Map].Spawns.Length).ToArray();
+            for (int i = spawnSlots.Length - 1; i > 0; i--) { int j = random.Next(i + 1); int swap = spawnSlots[i]; spawnSlots[i] = spawnSlots[j]; spawnSlots[j] = swap; }
             for (int seat = 0; seat < options.Length; seat++) {
                 State.Players[seat] = new Fighter { Seat = seat, Starter = options[seat].Starter, Lives = options[0].Lives };
-                Spawn(State.Players[seat]);
+                Spawn(State.Players[seat], spawnSlots[seat]);
             }
-            Log("对局开始 · " + options.Length + " 人混战 · 掉出场地扣命");
+            Log(State.Mode == 2 ? "军备竞赛开始 · 无限命 · 取得最终武器并击杀获胜" : "对局开始 · " + options.Length + " 人混战 · 掉出场地扣命");
         }
         public static bool ValidOptions(MatchOptions o) {
-            return o != null && o.Map >= 0 && o.Map < Rules.Arenas.Length && o.Lives >= 3 && o.Lives <= 10 && o.Starter >= 0 && o.Starter < Rules.StarterCount && o.Mode >= 0 && o.Mode <= 1;
+            return o != null && o.Map >= 0 && o.Map < Rules.Arenas.Length && o.Lives >= 3 && o.Lives <= 10 && o.Starter >= 0 && o.Starter < Rules.StarterCount && o.Mode >= 0 && o.Mode <= 2;
         }
         public void Log(string text) {
             State.Log.Add(String.Format("{0:00}:{1:00}  {2}", (int)State.Seconds / 60, (int)State.Seconds % 60, text));
@@ -145,7 +157,7 @@ namespace StickMayhem {
         public bool Submit(int seat, InputFrame value) {
             if (seat < 0 || seat >= State.Players.Length || State.Finished || value == null || value.Session != State.Session ||
                 value.Seq <= 0 || value.Jump < 0 || value.Bomb < 0 || value.Drop < 0 ||
-                !Rules.Finite(value.AimX) || !Rules.Finite(value.AimY) || value.AimX < -300 || value.AimX > 1300 || value.AimY < -250 || value.AimY > 850) return false;
+                !Rules.Finite(value.AimX) || !Rules.Finite(value.AimY) || value.AimX < -300 || value.AimX > 2100 || value.AimY < -250 || value.AimY > 1350) return false;
             var old = inputs[seat];
             if (old != null && (value.Seq <= old.Seq || value.Jump < old.Jump || value.Bomb < old.Bomb || value.Drop < old.Drop ||
                 value.Jump - old.Jump > 8 || value.Bomb - old.Bomb > 8 || value.Drop - old.Drop > 8)) return false;
@@ -154,12 +166,19 @@ namespace StickMayhem {
                 Left = value.Left, Right = value.Right, Fire = value.Fire, Jet = value.Jet, AimX = value.AimX, AimY = value.AimY };
             inputTicks[seat] = State.Tick; return true;
         }
-        void Spawn(Fighter p) {
-            p.X = Rules.Arenas[State.Map].Spawns[p.Seat];
+        int RandomSpawn(Fighter player) {
+            var spawns = Rules.Arenas[State.Map].Spawns;
+            var available = Enumerable.Range(0, spawns.Length).Where(i => !State.Players.Any(other => other != null && other != player && other.Lives > 0 && other.Respawn <= 0 && Math.Abs(other.X - spawns[i]) < 60)).ToArray();
+            return available.Length == 0 ? random.Next(spawns.Length) : available[random.Next(available.Length)];
+        }
+        void Spawn(Fighter p, int spawnSlot = -1) {
+            var spawns = Rules.Arenas[State.Map].Spawns;
+            p.X = spawns[spawnSlot >= 0 && spawnSlot < spawns.Length ? spawnSlot : RandomSpawn(p)];
             var start = Rules.Arenas[State.Map].Platforms.Where(t => p.X >= t.X && p.X <= t.X + t.Width).OrderByDescending(t => t.Y).First();
             p.Y = start.Y - 1; p.Vx = p.Vy = 0; p.Jumps = 0; p.Grounded = false; p.Impact = 0;
             p.Bombs = 3; p.BurstRemaining = 0;
-            if (State.Mode == 1) { p.Weapon = 12; p.Magazine = Rules.Weapons[12].Magazine; p.Reserve = -1; }
+            if (State.Mode == 2) { p.RaceProgress = Math.Max(0, Math.Min(p.RaceProgress, Rules.ArmsRaceWeapons.Length - 1)); p.Weapon = Rules.ArmsRaceWeapons[p.RaceProgress]; p.Magazine = Rules.Weapons[p.Weapon].Magazine; p.Reserve = -1; }
+            else if (State.Mode == 1) { p.Weapon = 12; p.Magazine = Rules.Weapons[12].Magazine; p.Reserve = -1; }
             else EquipStarter(p);
             p.Cooldown = p.ReloadTime = 0; p.BombCooldown = 0;
             p.ShieldTime = p.JetFuel = p.InvisibleTime = p.WeaponTime = p.MeleeSwing = p.SpeedTime = p.FireRamp = p.SlowTime = 0; p.JetOwned = false;
@@ -177,12 +196,12 @@ namespace StickMayhem {
             var weapon = Rules.Weapons[p.Weapon];
             if (p.ReloadTime > 0 || p.Magazine >= weapon.Magazine) return;
             if (p.Reserve == 0) { EquipStarter(p); Popup(p, Rules.Weapons[p.Starter].Name + " · 备用"); return; }
-            p.ReloadTime = weapon.Reload;
+            p.ReloadTime = weapon.Reload > 0 ? weapon.Reload : State.Mode == 2 ? .85 : weapon.Reload;
         }
         void FinishReload(Fighter p) {
             var weapon = Rules.Weapons[p.Weapon];
             if (weapon.BoltAction) {
-                if (State.Mode == 1 && p.Weapon == 12 && p.Reserve < 0) p.Magazine = weapon.Magazine;
+                if ((State.Mode == 1 && p.Weapon == 12 || State.Mode == 2) && p.Reserve < 0) p.Magazine = weapon.Magazine;
                 return;
             }
             if (p.Reserve < 0) p.Magazine = weapon.Magazine;
@@ -208,7 +227,7 @@ namespace StickMayhem {
                     .Select(target => new { Player = target, Dx = target.X - p.X, Dy = target.Y - p.Y })
                     .Select(hit => new { hit.Player, Forward = hit.Dx * meleeDx + hit.Dy * meleeDy, Side = Math.Abs(hit.Dx * meleeDy - hit.Dy * meleeDx) })
                     .Where(hit => hit.Forward >= 0 && hit.Forward <= 88 && hit.Side <= 21 + hit.Forward * .18).OrderBy(hit => hit.Forward).FirstOrDefault();
-                if (enemy != null) DirectDeath(enemy.Player, "被坐牢之剑击中", true);
+                if (enemy != null) DirectDeath(enemy.Player, "被坐牢之剑击中", true, p.Seat);
                 return;
             }
             if (weapon.Explosive ? State.Grenades.Count >= 8 : State.Shots.Count >= 160) return;
@@ -242,17 +261,40 @@ namespace StickMayhem {
             p.Magazine--;
             if (p.Magazine == 0) {
                 p.BurstRemaining = 0;
-                if (p.Weapon == 6) DirectDeath(p, "牢张的愤怒弹药耗尽", true);
+                if (p.Weapon == 6 && State.Mode != 2) DirectDeath(p, "牢张的愤怒弹药耗尽", true);
                 else if (weapon.BoltAction && State.Mode == 1 && p.Weapon == 12 && p.Reserve < 0) p.ReloadTime = weapon.Reload;
+                else if (weapon.BoltAction && State.Mode == 2 && p.Reserve < 0) p.ReloadTime = weapon.Reload > 0 ? weapon.Reload : .85;
                 else if (weapon.BoltAction) { EquipStarter(p); p.FireRamp = 0; Popup(p, Rules.Weapons[p.Starter].Name + " · 备用"); }
                 else BeginReload(p);
             } else if (weapon.BoltAction) p.ReloadTime = weapon.Reload;
         }
-        void DirectDeath(Fighter p, string reason, bool shatter = false) {
+        internal void AdvanceArmsRace(Fighter killer) {
+            if (State.Mode != 2 || killer == null) return;
+            if (killer.RaceProgress >= Rules.ArmsRaceWeapons.Length - 1) {
+                State.Winner = killer.Seat; Log("成员 " + (killer.Seat + 1) + " 完成军备竞赛！"); return;
+            }
+            killer.RaceKills++;
+            if (killer.RaceKills < 2) { Popup(killer, "击杀进度 1/2"); Log("成员 " + (killer.Seat + 1) + " " + Rules.Weapons[killer.Weapon].Name + " 击杀进度 1/2"); return; }
+            killer.RaceProgress++; killer.RaceKills = 0; killer.Weapon = Rules.ArmsRaceWeapons[killer.RaceProgress]; killer.Magazine = Rules.Weapons[killer.Weapon].Magazine; killer.Reserve = -1;
+            killer.ReloadTime = killer.Cooldown = 0; killer.FireRamp = 0; killer.BurstRemaining = 0; killer.WeaponTime = 0;
+            Popup(killer, "军备升级 · " + Rules.Weapons[killer.Weapon].Name);
+            Log("成员 " + (killer.Seat + 1) + " 军备升级 " + (killer.RaceProgress + 1) + "/" + Rules.ArmsRaceWeapons.Length + " · " + Rules.Weapons[killer.Weapon].Name);
+        }
+        void DirectDeath(Fighter p, string reason, bool shatter = false, int killerSeat = -1, bool allowRecentHit = false) {
+            if (State.Mode == 2 && killerSeat < 0 && allowRecentHit && p.LastHitBy >= 0 && p.LastHitBy != p.Seat && State.Tick - p.LastHitTick <= 300) killerSeat = p.LastHitBy;
+            if (State.Mode == 2 && killerSeat < 0) {
+                var rivals = State.Players.Where(other => other.Seat != p.Seat && other.Lives > 0 && other.Respawn <= 0).ToArray();
+                if (rivals.Length == 0) rivals = State.Players.Where(other => other.Seat != p.Seat && other.Lives > 0).ToArray();
+                var nearest = rivals.OrderBy(other => (other.X - p.X) * (other.X - p.X) + (other.Y - p.Y) * (other.Y - p.Y)).FirstOrDefault();
+                if (nearest != null) killerSeat = nearest.Seat;
+            }
             if (shatter) State.Shatters.Add(new Shatter { Id = ++nextId, Owner = p.Seat, X = p.X, Y = p.Y });
-            p.Lives--; p.Respawns++; p.Respawn = p.Lives > 0 ? 1.1 : 0;
+            if (State.Mode != 2) p.Lives--;
+            p.Respawns++; p.Respawn = p.Lives > 0 ? 1.1 : 0;
             p.Vx = p.Vy = 0; p.BurstRemaining = 0; p.Cooldown = p.ReloadTime = 0; p.ShieldTime = p.JetFuel = p.InvisibleTime = p.WeaponTime = p.MeleeSwing = p.SpeedTime = p.FireRamp = p.SlowTime = 0; p.JetOwned = false;
-            Log("成员 " + (p.Seat + 1) + " " + reason + " · 剩余 " + p.Lives + " 命");
+            p.LastHitBy = -1; p.LastHitTick = 0;
+            if (killerSeat >= 0 && killerSeat < State.Players.Length && killerSeat != p.Seat && State.Players[killerSeat].Lives > 0) AdvanceArmsRace(State.Players[killerSeat]);
+            Log("成员 " + (p.Seat + 1) + " " + reason + (State.Mode == 2 ? " · 无限命，等待重生" : " · 剩余 " + p.Lives + " 命"));
         }
         void Throw(Fighter p) {
             if (p.Bombs <= 0 || p.BombCooldown > 0 || State.Grenades.Count >= 8) return;
@@ -261,22 +303,27 @@ namespace StickMayhem {
                 Vx = dx * 510 + p.Vx * .3, Vy = dy * 350 - 220 });
             p.Bombs--; p.BombCooldown = .7;
         }
-        bool Knock(Fighter p, double dx, double dy, double push, double impactPush = -1) {
+        internal bool Knock(Fighter p, double dx, double dy, double push, double impactPush = -1, int sourceSeat = -1) {
             if (p.Lives <= 0 || p.Respawn > 0 || p.Invulnerable > 0 || p.ShieldTime > 0) return false;
+            if (p.Impact >= Rules.MaxImpact && random.NextDouble() < Rules.ImpactFatalChance) {
+                DirectDeath(p, "冲击过载即死", true, sourceSeat);
+                return false;
+            }
             double factor = 1 + p.Impact / 120;
-            p.Impact = Math.Min(180, p.Impact + (impactPush < 0 ? push : impactPush) / 18);
+            p.Impact = Math.Min(Rules.MaxImpact, p.Impact + (impactPush < 0 ? push : impactPush) / 18);
             p.Vx = Rules.Clamp(p.Vx + dx * push * factor, -1050, 1050);
             p.Vy = Rules.Clamp(p.Vy + dy * push * factor - push * .24, -900, 950);
+            if (sourceSeat >= 0 && sourceSeat != p.Seat) { p.LastHitBy = sourceSeat; p.LastHitTick = State.Tick; }
             p.Grounded = false; p.HitStun = .16; return true;
         }
-        void Explode(double x, double y, double radius, double push, bool rocket = false) {
+        void Explode(double x, double y, double radius, double push, bool rocket = false, int sourceSeat = -1) {
             State.Bursts.Add(new Burst { X = x, Y = y, Radius = radius, Time = rocket ? .55 : .48, Rocket = rocket });
             if (State.Bursts.Count > 16) State.Bursts.RemoveAt(0);
             foreach (var p in State.Players) {
                 double dx = p.X - x, dy = p.Y - 24 - y, length = Math.Sqrt(dx * dx + dy * dy);
                 if (length < radius) {
                     if (length < 2) { dx = p.Seat == 0 ? -1 : 1; dy = -.3; length = 1; }
-                    Knock(p, dx / length, dy / length, push * (.35 + .65 * (1 - length / radius)));
+                    Knock(p, dx / length, dy / length, push * (.35 + .65 * (1 - length / radius)), -1, sourceSeat);
                 }
             }
         }
@@ -301,7 +348,7 @@ namespace StickMayhem {
                 if (oldReload > 0 && p.ReloadTime == 0) FinishReload(p);
                 p.MeleeSwing = Math.Max(0, p.MeleeSwing - Rules.Dt);
                 p.ShieldTime = Math.Max(0, p.ShieldTime - Rules.Dt); p.InvisibleTime = Math.Max(0, p.InvisibleTime - Rules.Dt); p.SpeedTime = Math.Max(0, p.SpeedTime - Rules.Dt);
-                if ((p.Weapon == 6 || p.Weapon == 8) && p.Respawn <= 0 && p.Lives > 0) {
+                if (State.Mode != 2 && (p.Weapon == 6 || p.Weapon == 8) && p.Respawn <= 0 && p.Lives > 0) {
                     p.WeaponTime = Math.Max(0, p.WeaponTime - Rules.Dt);
                     if (p.WeaponTime <= 0) { DirectDeath(p, p.Weapon == 6 ? "牢张的愤怒倒计时结束" : "坐牢之剑时限结束", true); continue; }
                 }
@@ -310,7 +357,7 @@ namespace StickMayhem {
                 if (p.Respawn > 0 || p.Lives <= 0) {
                     fireHeld[seat] = false;
                     if (input != null) { jump[seat] = input.Jump; bomb[seat] = input.Bomb; drop[seat] = input.Drop; }
-                    if (p.Lives > 0) { p.Respawn -= Rules.Dt; if (p.Respawn <= 0) Spawn(p); }
+                    if (p.Lives > 0) { p.Respawn -= Rules.Dt; if (p.Respawn <= 0) Spawn(p, RandomSpawn(p)); }
                     continue;
                 }
                 if (input != null) {
@@ -318,12 +365,12 @@ namespace StickMayhem {
                     bool fresh = State.Tick - inputTicks[seat] <= 30;
                     int move = fresh ? (input.Right ? 1 : 0) - (input.Left ? 1 : 0) : 0;
                     if (p.HitStun <= 0) {
-                        double target = move * 275 * (p.SpeedTime > 0 ? 2 : 1) * (p.SlowTime > 0 ? .5 : 1);
+                        double target = move * 275 * (p.SpeedTime > 0 ? 2 : 1) * (p.SlowTime > 0 ? Rules.ElectricSlowFactor : 1);
                         double approach = (p.Grounded ? 1500 : 1050) * Rules.Dt;
                         if (move != 0) p.Vx += Rules.Clamp(target - p.Vx, -approach, approach);
                         else p.Vx *= Math.Max(0, 1 - (p.Grounded ? 8 : 1.8) * Rules.Dt);
                     }
-                    if (fresh && input.Jump > jump[seat] && p.Jumps < 2) { p.Vy = -565; p.Jumps++; p.Grounded = false; }
+                    if (fresh && input.Jump > jump[seat] && p.Jumps < 2) { p.Vy = -565 * (p.SlowTime > 0 ? Rules.ElectricSlowFactor : 1); p.Jumps++; p.Grounded = false; }
                     if (fresh && input.Jet && p.JetOwned && p.JetFuel > 0) {
                         p.Vy = Math.Max(-510, p.Vy - 1850 * Rules.Dt); p.JetFuel = Math.Max(0, p.JetFuel - Rules.Dt); p.Grounded = false;
                     }
@@ -349,17 +396,17 @@ namespace StickMayhem {
                     (!s.DirectKill || target.Invulnerable <= 0 && target.ShieldTime <= 0) && SegmentHit(ox, oy, s.X, s.Y, target))
                     .OrderBy(target => (target.X - ox) * (target.X - ox) + (target.Y - oy) * (target.Y - oy)).FirstOrDefault();
                 if (enemy != null) {
-                    if (s.DirectKill) DirectDeath(enemy, "被克莱博击中", true);
-                    else if (s.Rocket) Explode(s.X, s.Y, 190, 880, true);
+                    if (s.DirectKill) DirectDeath(enemy, "被克莱博击中", true, s.Owner);
+                    else if (s.Rocket) Explode(s.X, s.Y, 190, 880, true, s.Owner);
                     else {
                         double len = Math.Sqrt(s.Vx * s.Vx + s.Vy * s.Vy);
-                        if (Knock(enemy, s.Vx / len, s.Vy / len, s.Push, s.ImpactPush > 0 ? s.ImpactPush : -1) && s.SlowTarget) enemy.SlowTime = 2;
+                        if (Knock(enemy, s.Vx / len, s.Vy / len, s.Push, s.ImpactPush > 0 ? s.ImpactPush : -1, s.Owner) && s.SlowTarget) enemy.SlowTime = 2;
                     }
                     State.Shots.Remove(s); continue;
                 }
                 bool platform = s.Rocket && Rules.Arenas[State.Map].Platforms.Any(t => s.Vy > 0 && oy < t.Y && s.Y >= t.Y && s.X >= t.X && s.X <= t.X + t.Width);
-                if (s.Time <= 0 || s.X < -100 || s.X > 1100 || s.Y < -170 || s.Y > 680 || platform) {
-                    if (s.Rocket && (s.Time <= 0 || platform)) Explode(s.X, s.Y, 190, 880, true);
+                if (s.Time <= 0 || s.X < -100 || s.X > Rules.WorldWidth(State.Map) + 100 || s.Y < -170 || s.Y > Rules.WorldHeight(State.Map) + 80 || platform) {
+                    if (s.Rocket && (s.Time <= 0 || platform)) Explode(s.X, s.Y, 190, 880, true, s.Owner);
                     State.Shots.Remove(s);
                 }
             }
@@ -368,21 +415,21 @@ namespace StickMayhem {
                 g.X += g.Vx * Rules.Dt; g.Y += g.Vy * Rules.Dt;
                 var directHit = g.Launched ? State.Players.Where(target => target.Seat != g.Owner && target.Respawn <= 0 && target.Lives > 0 &&
                     SegmentHit(oldX, oldY, g.X, g.Y, target)).OrderBy(target => (target.X - oldX) * (target.X - oldX) + (target.Y - oldY) * (target.Y - oldY)).FirstOrDefault() : null;
-                if (directHit != null) { Explode(g.X, g.Y, 155, 730); State.Grenades.Remove(g); continue; }
+                if (directHit != null) { Explode(g.X, g.Y, 155, 730, false, g.Owner); State.Grenades.Remove(g); continue; }
                 var landing = Rules.Arenas[State.Map].Platforms.Where(t => oldY <= t.Y - 5 && g.Y >= t.Y - 5 && g.Vy > 0 && g.X >= t.X && g.X <= t.X + t.Width).OrderBy(t => t.Y).FirstOrDefault();
                 if (landing != null) { g.Y = landing.Y - 5; g.Vy *= -.48; g.Vx *= .72; }
-                if (g.Fuse <= 0) { Explode(g.X, g.Y, g.Launched ? 155 : 175, g.Launched ? 730 : 940); State.Grenades.Remove(g); }
-                else if (g.X < -150 || g.X > 1150 || g.Y > 760) State.Grenades.Remove(g);
+                if (g.Fuse <= 0) { Explode(g.X, g.Y, g.Launched ? 155 : 175, g.Launched ? 730 : 940, false, g.Owner); State.Grenades.Remove(g); }
+                else if (g.X < -150 || g.X > Rules.WorldWidth(State.Map) + 150 || g.Y > Rules.WorldHeight(State.Map) + 160) State.Grenades.Remove(g);
             }
             State.NextCrate -= Rules.Dt;
             if (State.NextCrate <= 0) {
                 State.NextCrate = 7 + random.NextDouble() * 3;
-                if (State.Mode != 1 && State.Crates.Count < 4) DropCrate(150 + random.NextDouble() * 700, RandomAirdropWeapon());
+                if (State.Mode == 0 && State.Crates.Count < 4) DropCrate(100 + random.NextDouble() * Math.Max(100, Rules.WorldWidth(State.Map) - 200), RandomAirdropWeapon());
             }
             State.NextBigCrate -= Rules.Dt;
             if (State.NextBigCrate <= 0) {
                 State.NextBigCrate = 28 + random.NextDouble() * 8;
-                if (State.Mode != 1 && State.Crates.Count < 4) DropBigCrate(150 + random.NextDouble() * 700, RandomBigAirdropWeapon());
+                if (State.Mode == 0 && State.Crates.Count < 4) DropBigCrate(100 + random.NextDouble() * Math.Max(100, Rules.WorldWidth(State.Map) - 200), RandomBigAirdropWeapon());
             }
             foreach (var crate in State.Crates.ToArray()) {
                 crate.Age += Rules.Dt; double oldY = crate.Y;
@@ -391,7 +438,7 @@ namespace StickMayhem {
                     var landing = Rules.Arenas[State.Map].Platforms.Where(t => crate.X >= t.X && crate.X <= t.X + t.Width && oldY <= t.Y - 10 && crate.Y >= t.Y - 10).OrderBy(t => t.Y).FirstOrDefault();
                     if (landing != null) { crate.Y = landing.Y - 10; crate.Vy = 0; crate.Landed = true; }
                 }
-                var picker = State.Players.Where(p => p.Lives > 0 && p.Respawn <= 0 && !Rules.LargeDropWeapon(p.Weapon) &&
+                var picker = State.Players.Where(p => State.Mode == 0 && p.Lives > 0 && p.Respawn <= 0 && !Rules.LargeDropWeapon(p.Weapon) &&
                     Math.Abs(p.X - crate.X) < 29 && Math.Abs(p.Y - 20 - crate.Y) < 32).OrderBy(p => Math.Abs(p.X - crate.X)).FirstOrDefault();
                 if (picker != null) {
                     picker.Weapon = crate.Weapon; picker.Magazine = Rules.Weapons[crate.Weapon].Magazine;
@@ -404,10 +451,12 @@ namespace StickMayhem {
                     Log("成员 " + (picker.Seat + 1) + " 获得 " + pickup + (pickup == Rules.Weapons[crate.Weapon].Name ? "" : "（" + Rules.Weapons[crate.Weapon].Name + "）"));
                 } else if (crate.Y > 720 || crate.Age > 24) State.Crates.Remove(crate);
             }
+            if (State.Mode == 2) { State.Crates.Clear(); State.Powerups.Clear(); }
+            else {
             State.NextPower -= Rules.Dt;
             if (State.NextPower <= 0) {
                 State.NextPower = 8 + random.NextDouble() * 2;
-                if (State.Powerups.Count < 3) DropPowerup(150 + random.NextDouble() * 700, random.Next(4));
+                if (State.Powerups.Count < 3) DropPowerup(100 + random.NextDouble() * Math.Max(100, Rules.WorldWidth(State.Map) - 200), random.Next(4));
             }
             foreach (var item in State.Powerups.ToArray()) {
                 item.Age += Rules.Dt; double oldY = item.Y;
@@ -425,15 +474,18 @@ namespace StickMayhem {
                     State.Powerups.Remove(item); Log("成员 " + (picker.Seat + 1) + " 获得 " + (item.Kind == 0 ? "护盾" : item.Kind == 1 ? "火箭飞行器" : item.Kind == 2 ? "隐身装置" : "火力全开"));
                 } else if (item.Y > 720 || item.Age >= 7) State.Powerups.Remove(item);
             }
+            }
             foreach (var burst in State.Bursts.ToArray()) { burst.Time -= Rules.Dt; if (burst.Time <= 0) State.Bursts.Remove(burst); }
             foreach (var p in State.Players) {
-                if (p.Respawn <= 0 && p.Lives > 0 && (p.Y > 690 || p.X < -90 || p.X > 1090)) {
-                    DirectDeath(p, "掉落");
+                if (p.Respawn <= 0 && p.Lives > 0 && (p.Y > Rules.WorldHeight(State.Map) + 90 || p.X < -90 || p.X > Rules.WorldWidth(State.Map) + 90)) {
+                    DirectDeath(p, "掉落", false, -1, true);
                 }
             }
-            var survivors = State.Players.Where(p => p.Lives > 0).ToArray();
-            if (survivors.Length == 0) State.Winner = -1;
-            else if (survivors.Length == 1) State.Winner = survivors[0].Seat;
+            if (State.Mode != 2) {
+                var survivors = State.Players.Where(p => p.Lives > 0).ToArray();
+                if (survivors.Length == 0) State.Winner = -1;
+                else if (survivors.Length == 1) State.Winner = survivors[0].Seat;
+            }
             if (State.Finished) Log(State.Winner < 0 ? "本局平局。" : "成员 " + (State.Winner + 1) + " 获胜。");
         }
         void StepShatters() {
@@ -454,23 +506,28 @@ namespace StickMayhem {
     public sealed class Bot {
         int seq, jump, bomb, drop;
         int nextBlindShotTick, nextBlindAimTick;
+        int airborneSinceTick = -1;
         readonly Random random;
         double lastSeenX, lastSeenY, probeX = 500, probeY = 300;
         bool hasLastSeen, lastFire;
         public Bot(int seed) { random = new Random(seed); }
         public InputFrame Think(MatchState state, int seat) {
             var p = state.Players[seat]; var opponents = state.Players.Where(opponent => opponent.Seat != seat && opponent.Lives > 0).ToArray();
+            if (p.Grounded) airborneSinceTick = -1;
+            else if (airborneSinceTick < 0) airborneSinceTick = state.Tick;
+            bool recoverLanding = !p.Grounded && state.Tick - airborneSinceTick >= 105;
             var visible = opponents.Where(opponent => opponent.InvisibleTime <= 0).ToArray();
             var enemy = (visible.Length > 0 ? visible : opponents).OrderBy(opponent => visible.Length == 0 ? opponent.Seat : Math.Abs(opponent.X - p.X) + Math.Abs(opponent.Y - p.Y) * .5).FirstOrDefault()
                 ?? state.Players[(seat + 1) % state.Players.Length];
             bool hidden = enemy.InvisibleTime > 0;
+            var arena = Rules.Arenas[state.Map];
             double enemyX, enemyY, enemyVx, enemyVy;
             if (!hidden) { lastSeenX = enemy.X; lastSeenY = enemy.Y; hasLastSeen = true; enemyX = enemy.X; enemyY = enemy.Y; enemyVx = enemy.Vx; enemyVy = enemy.Vy; }
             else {
                 if (state.Tick >= nextBlindAimTick) {
-                    double centerX = hasLastSeen ? lastSeenX : 500, centerY = hasLastSeen ? lastSeenY : 300;
-                    probeX = Rules.Clamp(centerX + (random.NextDouble() - .5) * (hasLastSeen ? 500 : 1000), 40, 960);
-                    probeY = Rules.Clamp(centerY + (random.NextDouble() - .5) * (hasLastSeen ? 360 : 600), 40, 560);
+                    double centerX = hasLastSeen ? lastSeenX : arena.Width / 2, centerY = hasLastSeen ? lastSeenY : arena.Height / 2;
+                    probeX = Rules.Clamp(centerX + (random.NextDouble() - .5) * (hasLastSeen ? 500 : Math.Min(1000, arena.Width)), 40, arena.Width - 40);
+                    probeY = Rules.Clamp(centerY + (random.NextDouble() - .5) * (hasLastSeen ? 360 : Math.Min(600, arena.Height)), 40, arena.Height - 40);
                     nextBlindAimTick = state.Tick + random.Next(9, 25);
                 }
                 enemyX = probeX; enemyY = probeY; enemyVx = enemyVy = 0;
@@ -481,13 +538,23 @@ namespace StickMayhem {
             var power = state.Powerups.OrderBy(c => Math.Abs(c.X - p.X) + Math.Abs(c.Y - p.Y) * .4).FirstOrDefault();
             if (power != null && power.Landed && (p.ShieldTime <= 0 && (!p.JetOwned || p.JetFuel <= 0) && p.InvisibleTime <= 0 && p.SpeedTime <= 0)) target = power.X;
             var platforms = Rules.Arenas[state.Map].Platforms;
+            if (recoverLanding) {
+                var landing = platforms.Where(t => t.Y > p.Y + 25 && t.Width >= 100)
+                    .OrderBy(t => Math.Abs(Rules.Clamp(p.X, t.X + 35, t.X + t.Width - 35) - p.X) + (t.Y - p.Y) * .22)
+                    .FirstOrDefault();
+                if (landing != null) target = Rules.Clamp(p.X, landing.X + 35, landing.X + landing.Width - 35);
+                else {
+                    var floor = platforms.OrderByDescending(t => t.Y).ThenBy(t => Math.Abs((t.X + t.Width / 2) - p.X)).First();
+                    target = Rules.Clamp(p.X, floor.X + 35, floor.X + floor.Width - 35);
+                }
+            }
             bool edge = p.Grounded && !platforms.Any(t => p.X + Math.Sign(target - p.X) * 55 > t.X && p.X + Math.Sign(target - p.X) * 55 < t.X + t.Width && Math.Abs(t.Y - p.Y) < 1);
-            bool falling = p.Y > 530 && p.Vy > 0;
+            bool falling = p.Y > arena.Height - 70 && p.Vy > 0;
             bool climb = enemyY < p.Y - 65 || crate != null && crate.Y < p.Y - 65;
-            if (state.Tick % 27 == 0 && p.Jumps < 2 && (edge || falling || climb || random.NextDouble() < .12)) jump++;
+            if (!recoverLanding && state.Tick % 27 == 0 && p.Jumps < 2 && (edge || falling || climb || random.NextDouble() < .12)) jump++;
             if (state.Tick % 120 == 0 && p.Bombs > 0 && Math.Abs(enemyX - p.X) < 240 && Math.Abs(enemyY - p.Y) < 100) bomb++;
             if (state.Tick % 80 == 0 && p.Grounded && enemyY > p.Y + 80 && Math.Abs(enemyX - p.X) < 100) drop++;
-            if (p.X < 115) target = 300; if (p.X > 885) target = 700;
+            if (p.X < 115) target = Math.Min(300, arena.Width - 100); if (p.X > arena.Width - 115) target = Math.Max(arena.Width - 300, 100);
             double distance = target - p.X;
             bool melee = Rules.Weapons[p.Weapon].Melee;
             bool move = Math.Abs(distance) > (crate != null && target == crate.X ? 14 : melee ? 62 : 180);
@@ -500,33 +567,34 @@ namespace StickMayhem {
             if (melee) fire = active && Math.Abs(enemyX - p.X) <= 70 && Math.Abs(enemyY - p.Y) <= 52 && p.Cooldown <= 0 && p.ReloadTime <= 0 && !lastFire;
             else if (hidden) {
                 bool probeReady = state.Tick >= nextBlindShotTick && p.Cooldown <= 0 && p.ReloadTime <= 0;
-                fire = active && probeReady && (!weapon.DirectKill || RecoilSafe(p, aimX, aimY, platforms, state.Mode));
+                fire = active && probeReady && (!weapon.DirectKill || RecoilSafe(p, aimX, aimY, platforms, state.Mode, arena));
                 if (fire) nextBlindShotTick = state.Tick + random.Next(9, 22);
             } else {
                 fire = active;
                 if (!weapon.Automatic) fire = fire && p.Cooldown <= 0 && p.ReloadTime <= 0 && p.Magazine > 0 && !lastFire;
-                if (weapon.DirectKill) fire = fire && p.Magazine > 0 && RecoilSafe(p, aimX, aimY, platforms, state.Mode);
+                if (weapon.DirectKill) fire = fire && p.Magazine > 0 && RecoilSafe(p, aimX, aimY, platforms, state.Mode, arena);
             }
+            if (recoverLanding) fire = false;
             lastFire = fire;
             return new InputFrame { Session = state.Session, Seq = ++seq, Jump = jump, Bomb = bomb, Drop = drop,
-                Left = move && distance < 0, Right = move && distance > 0, Jet = p.JetFuel > 0 && (falling || climb),
+                Left = move && distance < 0, Right = move && distance > 0, Jet = !recoverLanding && p.JetFuel > 0 && (falling || climb),
                 Fire = fire,
-                AimX = Rules.Clamp(aimX, -200, 1200), AimY = Rules.Clamp(aimY, -200, 800) };
+                AimX = Rules.Clamp(aimX, -200, arena.Width + 200), AimY = Rules.Clamp(aimY, -200, arena.Height + 200) };
         }
-        static bool RecoilSafe(Fighter p, double aimX, double aimY, Platform[] platforms, int mode) {
+        static bool RecoilSafe(Fighter p, double aimX, double aimY, Platform[] platforms, int mode, Arena arena) {
             double dx = aimX - p.X, dy = aimY - (p.Y - 25), length = Math.Sqrt(dx * dx + dy * dy);
             if (length < 1) return false;
             dx /= length; dy /= length;
             double recoilX = Rules.Clamp(p.Vx - dx * 790, -1050, 1050);
             double predictedX = p.X + recoilX * .38;
-            if (predictedX < -30 || predictedX > 1030) return false;
+            if (predictedX < -30 || predictedX > arena.Width + 30) return false;
             if (p.Grounded) {
                 var support = platforms.Where(t => p.X >= t.X - 1 && p.X <= t.X + t.Width + 1 && Math.Abs(t.Y - p.Y) < 2).OrderBy(t => t.Y).FirstOrDefault();
                 if (support != null && (predictedX < support.X + 20 || predictedX > support.X + support.Width - 20)) return false;
-            } else if (predictedX < 65 || predictedX > 935) return false;
+            } else if (predictedX < 65 || predictedX > arena.Width - 65) return false;
             double recoilY = Rules.Clamp(p.Vy - dy * 790, -900, 950);
             double predictedY = p.Y + recoilY * .24 + Rules.GravityFor(mode) * .5 * .24 * .24;
-            return predictedY < 680;
+            return predictedY < arena.Height + 80;
         }
     }
 }

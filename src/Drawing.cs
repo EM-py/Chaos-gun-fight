@@ -15,6 +15,10 @@ namespace StickMayhem {
         public event Action<Point> Aimed;
         public event Action<bool> Shooting;
         public event Action Bombed;
+        string cameraSession;
+        int cameraMap = -1, cameraTick;
+        double cameraZoom = 1;
+        bool cameraZoomReady;
         static readonly Typeface Face = new Typeface("Microsoft YaHei UI");
         public ArenaView() {
             Focusable = true; Cursor = Cursors.Cross;
@@ -44,30 +48,62 @@ namespace StickMayhem {
         }
         public Rect StageRect {
             get {
-                double scale = Math.Max(.001, Math.Min(Math.Max(1, ActualWidth - 8) / 1000, Math.Max(1, ActualHeight - 8) / 600));
-                return new Rect((ActualWidth - 1000 * scale) / 2, (ActualHeight - 600 * scale) / 2, 1000 * scale, 600 * scale);
+                double scale = Math.Max(.001, Math.Min(Math.Max(1, ActualWidth - 8) / Rules.ViewWidth, Math.Max(1, ActualHeight - 8) / Rules.ViewHeight));
+                return new Rect((ActualWidth - Rules.ViewWidth * scale) / 2, (ActualHeight - Rules.ViewHeight * scale) / 2, Rules.ViewWidth * scale, Rules.ViewHeight * scale);
             }
         }
+        struct CameraView { public Point Origin; public double Zoom; }
+        CameraView Camera {
+            get {
+                if (State == null) return new CameraView { Zoom = 1 };
+                var arena = Rules.Arenas[State.Map];
+                var active = State.Players.Where(p => p.Lives > 0 && p.Respawn <= 0).ToArray();
+                double minX = active.Length == 0 ? arena.Width / 2 : active.Min(p => p.X), maxX = active.Length == 0 ? minX : active.Max(p => p.X);
+                double minY = active.Length == 0 ? arena.Height / 2 : active.Min(p => p.Y), maxY = active.Length == 0 ? minY : active.Max(p => p.Y);
+                double targetZoom = arena.Width <= Rules.ViewWidth && arena.Height <= Rules.ViewHeight ? 1 :
+                    Rules.Clamp(Math.Min((Rules.ViewWidth - 150) / Math.Max(1, maxX - minX + 240),
+                    (Rules.ViewHeight - 150) / Math.Max(1, maxY - minY + 180)), .38, 1);
+                bool newMatch = !cameraZoomReady || cameraMap != State.Map || cameraSession != State.Session;
+                if (newMatch) { cameraZoom = targetZoom; cameraZoomReady = true; cameraSession = State.Session; cameraMap = State.Map; cameraTick = State.Tick; }
+                else {
+                    int elapsedTicks = Math.Max(0, State.Tick - cameraTick);
+                    cameraTick = State.Tick;
+                    if (!State.Players.Any(p => p.Lives > 0 && p.Respawn > 0) && elapsedTicks > 0) {
+                        double blend = 1 - Math.Exp(-elapsedTicks * Rules.Dt / .32);
+                        cameraZoom += (targetZoom - cameraZoom) * blend;
+                    }
+                }
+                double zoom = cameraZoom;
+                double visibleWidth = Rules.ViewWidth / zoom, visibleHeight = Rules.ViewHeight / zoom;
+                double cx = (minX + maxX) / 2, cy = (minY + maxY) / 2 - 30;
+                double ox = Rules.Clamp(cx - visibleWidth / 2, 0, Math.Max(0, arena.Width - visibleWidth));
+                double oy = Rules.Clamp(cy - visibleHeight / 2, 0, Math.Max(0, arena.Height - visibleHeight));
+                return new CameraView { Origin = new Point(ox, oy), Zoom = zoom };
+            }
+        }
+        public double CurrentZoom { get { return Camera.Zoom; } }
         public static double PlayerOpacity(int playerSeat, int viewerSeat, double invisibleTime) {
             if (invisibleTime <= 0) return 1;
             return playerSeat == viewerSeat ? .12 : 0;
         }
         public static bool IsOffscreen(double x, double footY) {
             double centerY = footY - 25;
-            return x < 0 || x > Rules.Width || centerY < 0 || centerY > Rules.Height;
+            return x < 0 || x > Rules.ViewWidth || centerY < 0 || centerY > Rules.ViewHeight;
         }
         public static Point OffscreenPoint(double x, double footY) {
-            double dx = x - Rules.Width / 2, dy = footY - 25 - Rules.Height / 2;
-            double tx = Math.Abs(dx) < .001 ? Double.PositiveInfinity : (Rules.Width / 2 - 26) / Math.Abs(dx);
-            double ty = Math.Abs(dy) < .001 ? Double.PositiveInfinity : (Rules.Height / 2 - 26) / Math.Abs(dy);
+            double dx = x - Rules.ViewWidth / 2, dy = footY - 25 - Rules.ViewHeight / 2;
+            double tx = Math.Abs(dx) < .001 ? Double.PositiveInfinity : (Rules.ViewWidth / 2 - 26) / Math.Abs(dx);
+            double ty = Math.Abs(dy) < .001 ? Double.PositiveInfinity : (Rules.ViewHeight / 2 - 26) / Math.Abs(dy);
             double t = Math.Min(tx, ty);
-            return new Point(Rules.Width / 2 + dx * t, Rules.Height / 2 + dy * t);
+            return new Point(Rules.ViewWidth / 2 + dx * t, Rules.ViewHeight / 2 + dy * t);
         }
         public Point ToWorld(Point point) {
-            Rect r = StageRect;
-            return new Point(Rules.Clamp((point.X - r.Left) * 1000 / r.Width, -250, 1250), Rules.Clamp((point.Y - r.Top) * 600 / r.Height, -220, 820));
+            Rect r = StageRect; CameraView view = Camera; Point camera = view.Origin;
+            int map = State == null ? 0 : State.Map;
+            return new Point(Rules.Clamp(camera.X + (point.X - r.Left) * Rules.ViewWidth / (r.Width * view.Zoom), -250, Rules.WorldWidth(map) + 250),
+                Rules.Clamp(camera.Y + (point.Y - r.Top) * Rules.ViewHeight / (r.Height * view.Zoom), -220, Rules.WorldHeight(map) + 220));
         }
-        public Point ToScreen(Point world) { Rect r = StageRect; return new Point(r.Left + world.X * r.Width / 1000, r.Top + world.Y * r.Height / 600); }
+        public Point ToScreen(Point world) { Rect r = StageRect; CameraView view = Camera; Point camera = view.Origin; return new Point(r.Left + (world.X - camera.X) * r.Width * view.Zoom / Rules.ViewWidth, r.Top + (world.Y - camera.Y) * r.Height * view.Zoom / Rules.ViewHeight); }
         void Text(DrawingContext dc, string text, double x, double y, double size, Brush color, bool center) {
             #pragma warning disable 618
             var f = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, size, color);
@@ -78,11 +114,14 @@ namespace StickMayhem {
             base.OnRender(dc); if (Ink == null || ActualWidth <= 1 || ActualHeight <= 1) return;
             dc.DrawRectangle(Brushes.Transparent, new Pen(Line, 1), new Rect(.5, .5, ActualWidth - 1, ActualHeight - 1));
             if (State == null) return;
-            Rect r = StageRect; double scale = r.Width / 1000;
+            Rect r = StageRect; CameraView view = Camera; Point camera = view.Origin; double scale = r.Width / Rules.ViewWidth * view.Zoom;
             dc.PushClip(new RectangleGeometry(new Rect(1, 1, ActualWidth - 2, ActualHeight - 2)));
-            dc.PushTransform(new TranslateTransform(r.Left, r.Top)); dc.PushTransform(new ScaleTransform(scale, scale));
+            dc.PushTransform(new MatrixTransform(new Matrix(scale, 0, 0, scale, r.Left - camera.X * scale, r.Top - camera.Y * scale)));
             var thin = new Pen(Line, .65 / scale); var pen = new Pen(Ink, 1.25 / scale) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
-            for (int x = 100; x < 1000; x += 100) dc.DrawLine(thin, new Point(x, 30), new Point(x, 570));
+            double gridStartX = Math.Floor(camera.X / 100) * 100, gridStartY = Math.Floor(camera.Y / 100) * 100;
+            double visibleWidth = Rules.ViewWidth / view.Zoom, visibleHeight = Rules.ViewHeight / view.Zoom;
+            for (double x = gridStartX; x <= camera.X + visibleWidth; x += 100) dc.DrawLine(thin, new Point(x, camera.Y + 30 / view.Zoom), new Point(x, camera.Y + visibleHeight - 30 / view.Zoom));
+            for (double y = gridStartY; y <= camera.Y + visibleHeight; y += 100) dc.DrawLine(thin, new Point(camera.X, y), new Point(camera.X + visibleWidth, y));
             foreach (var platform in Rules.Arenas[State.Map].Platforms) {
                 dc.DrawRectangle(Surface, null, new Rect(platform.X, platform.Y, platform.Width, 10));
                 dc.DrawLine(new Pen(Muted, 1.2 / scale), new Point(platform.X, platform.Y), new Point(platform.X + platform.Width, platform.Y));
@@ -154,7 +193,8 @@ namespace StickMayhem {
             foreach (var p in State.Players) {
                 if (p.Lives <= 0 || p.Respawn > 0) continue;
                 double opacity = PlayerOpacity(p.Seat, Seat, p.InvisibleTime);
-                if (opacity <= 0 || IsOffscreen(p.X, p.Y)) continue;
+                double projectedX = (p.X - camera.X) * view.Zoom, projectedY = (p.Y - camera.Y) * view.Zoom;
+                if (opacity <= 0 || IsOffscreen(projectedX, projectedY)) continue;
                 double x = p.X, y = p.Y;
                 if (Previous != null && Blend < 1) {
                     var before = Previous.Players[p.Seat];
@@ -196,7 +236,7 @@ namespace StickMayhem {
                     dc.DrawEllipse(null, thin, new Point(x, y - 24), 26, 31); dc.Pop();
                 }
                 Text(dc, (p.Seat + 1) + "号", x, y + 6, (Minimal ? 8 : 9) / scale, p.Seat == Seat ? Accent : Muted, true);
-                Text(dc, ((int)p.Impact).ToString() + "%", Rules.Clamp(x, 95, 905), Math.Max(4, y - 58), (Minimal ? 9 : 10) / scale,
+                Text(dc, ((int)p.Impact).ToString() + "%", Rules.Clamp(x, camera.X + 95 / view.Zoom, camera.X + visibleWidth - 95 / view.Zoom), Math.Max(camera.Y + 4 / view.Zoom, y - 58 / view.Zoom), (Minimal ? 9 : 10) / scale,
                     p.Impact > 0 ? color : Muted, true);
                 double reloadDuration = Rules.Weapons[p.Weapon].Reload;
                 if (p.ReloadTime > 0 && reloadDuration > 0) {
@@ -219,28 +259,31 @@ namespace StickMayhem {
                     double opacityPopup = speedPopup ? (State.Tick % 18 < 12 ? Rules.Clamp(p.SpeedTime / .65, .3, 1) : .25) : Match.PopupOpacity(p);
                     dc.PushOpacity(opacityPopup);
                     string popupText = speedPopup ? p.Popup + "  " + Math.Ceiling(p.SpeedTime).ToString("0") + "s" : p.Weapon == 12 ? p.Popup + " · " + p.Magazine + "发" : p.Popup;
-                    double popupY = Math.Max(4, y - (p.Weapon == 6 || p.Weapon == 8 || p.Weapon == 11 || p.Weapon == 12 ? 100 : 82) - Match.PopupRise(p));
-                    if (speedPopup) Text(dc, popupText, Rules.Clamp(x + 1, 95, 905), popupY + 1, (Minimal ? 10 : 12) / scale, Brushes.Black, true);
-                    Text(dc, popupText, Rules.Clamp(x, 95, 905), popupY, (Minimal ? 10 : 12) / scale, speedPopup ? Brushes.White : Ink, true); dc.Pop();
+                    double popupY = Math.Max(camera.Y + 4 / view.Zoom, y - ((p.Weapon == 6 || p.Weapon == 8 || p.Weapon == 11 || p.Weapon == 12 ? 100 : 82) + Match.PopupRise(p)) / view.Zoom);
+                    if (speedPopup) Text(dc, popupText, Rules.Clamp(x + 1 / view.Zoom, camera.X + 95 / view.Zoom, camera.X + visibleWidth - 95 / view.Zoom), popupY + 1 / view.Zoom, (Minimal ? 10 : 12) / scale, Brushes.Black, true);
+                    Text(dc, popupText, Rules.Clamp(x, camera.X + 95 / view.Zoom, camera.X + visibleWidth - 95 / view.Zoom), popupY, (Minimal ? 10 : 12) / scale, speedPopup ? Brushes.White : Ink, true); dc.Pop();
                 }
                 if ((p.Weapon == 6 || p.Weapon == 8) && p.WeaponTime > 0 && p.PopupTime <= 0) {
                     string weaponLabel = p.Weapon == 6 ? "牢张的愤怒" : "坐牢之剑";
-                    Text(dc, weaponLabel + " · " + Math.Ceiling(p.WeaponTime).ToString("0") + "s", Rules.Clamp(x, 95, 905), Math.Max(4, y - 98), (Minimal ? 8 : 10) / scale, Ink, true);
+                    Text(dc, weaponLabel + " · " + Math.Ceiling(p.WeaponTime).ToString("0") + "s", Rules.Clamp(x, camera.X + 95 / view.Zoom, camera.X + visibleWidth - 95 / view.Zoom), Math.Max(camera.Y + 4 / view.Zoom, y - 98 / view.Zoom), (Minimal ? 8 : 10) / scale, Ink, true);
                 }
                 if (p.Weapon == 12 && p.PopupTime <= 0)
-                    Text(dc, "克莱博 · 剩余 " + p.Magazine + " 发", Rules.Clamp(x, 95, 905), Math.Max(4, y - 98), (Minimal ? 8 : 10) / scale, Ink, true);
+                    Text(dc, "克莱博 · 剩余 " + p.Magazine + " 发", Rules.Clamp(x, camera.X + 95 / view.Zoom, camera.X + visibleWidth - 95 / view.Zoom), Math.Max(camera.Y + 4 / view.Zoom, y - 98 / view.Zoom), (Minimal ? 8 : 10) / scale, Ink, true);
                 if (opacity < 1) dc.Pop();
             }
             foreach (var shatter in State.Shatters) DrawShatter(dc, shatter, scale);
             foreach (var p in State.Players) {
-                if (p.Lives <= 0 || p.Respawn > 0 || !IsOffscreen(p.X, p.Y)) continue;
+                double projectedX = (p.X - camera.X) * view.Zoom, projectedY = (p.Y - camera.Y) * view.Zoom;
+                if (p.Lives <= 0 || p.Respawn > 0 || !IsOffscreen(projectedX, projectedY)) continue;
                 double opacity = PlayerOpacity(p.Seat, Seat, p.InvisibleTime);
                 if (opacity <= 0) continue;
                 if (opacity < 1) dc.PushOpacity(opacity);
-                Point tip = OffscreenPoint(p.X, p.Y);
-                double dx = p.X - Rules.Width / 2, dy = p.Y - 25 - Rules.Height / 2;
+                Point relative = new Point(projectedX, projectedY);
+                Point tip = OffscreenPoint(relative.X, relative.Y);
+                double dx = relative.X - Rules.ViewWidth / 2, dy = relative.Y - 25 - Rules.ViewHeight / 2;
+                tip = new Point(camera.X + tip.X / view.Zoom, camera.Y + tip.Y / view.Zoom);
                 double length = Math.Max(1, Math.Sqrt(dx * dx + dy * dy)); dx /= length; dy /= length;
-                double size = 15, half = 7;
+                double size = 15 / view.Zoom, half = 7 / view.Zoom;
                 Point back = new Point(tip.X - dx * size, tip.Y - dy * size);
                 Point left = new Point(back.X - dy * half, back.Y + dx * half);
                 Point right = new Point(back.X + dy * half, back.Y - dx * half);
@@ -248,7 +291,7 @@ namespace StickMayhem {
                 using (var geometry = arrow.Open()) { geometry.BeginFigure(tip, true, true); geometry.LineTo(left, true, false); geometry.LineTo(right, true, false); }
                 Brush color = p.Seat == Seat ? Accent : Ink;
                 dc.DrawGeometry(color, null, arrow);
-                Text(dc, (p.Seat + 1) + "号", back.X - dx * 5, back.Y - dy * 5, (Minimal ? 8 : 9) / scale, color, true);
+                Text(dc, (p.Seat + 1) + "号", back.X - dx * 5 / view.Zoom, back.Y - dy * 5 / view.Zoom, (Minimal ? 8 : 9) / scale, color, true);
                 if (opacity < 1) dc.Pop();
             }
             if (Ready && AimVisible) {
@@ -257,7 +300,7 @@ namespace StickMayhem {
                 dc.DrawLine(thin, new Point(AimX - cross - 3 / scale, AimY), new Point(AimX + cross + 3 / scale, AimY));
                 dc.DrawLine(thin, new Point(AimX, AimY - cross - 3 / scale), new Point(AimX, AimY + cross + 3 / scale));
             }
-            dc.Pop(); dc.Pop(); dc.Pop();
+            dc.Pop(); dc.Pop();
             if (State.Finished) {
                 string title = State.Winner < 0 ? "平局" : State.Winner == Seat ? "本局获胜" : "本局结束";
                 Text(dc, title, ActualWidth / 2, 14, Minimal ? 12 : 16, Ink, true);
